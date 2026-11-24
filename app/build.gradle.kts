@@ -50,7 +50,8 @@ android {
     }
     sourceSets {
         // Room-Schemas für den Migrationstest
-        getByName("test").assets.srcDir("$projectDir/schemas")
+        // (Robolectric liest die Assets der App-Variante, nicht des Test-Ordners)
+        getByName("debug").assets.srcDir("$projectDir/schemas")
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true
