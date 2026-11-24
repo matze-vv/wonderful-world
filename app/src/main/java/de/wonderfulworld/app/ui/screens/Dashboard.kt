@@ -315,7 +315,7 @@ fun DashboardScreen(
 /** Auswahl nach dem +: Mission oder Erlebnis. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NewChooser(onMission: () -> Unit, onEntry: () -> Unit, onDismiss: () -> Unit) {
+fun NewChooser(onMission: () -> Unit, onEntry: () -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Was möchtest du anlegen?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 4.dp))

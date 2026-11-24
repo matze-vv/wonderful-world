@@ -53,5 +53,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_DEST = "dest"
         const val EXTRA_DISMISS_ALARM = "dismissAlarm"
+        const val DEST_NEW_MISSION = "newMission"
+        const val DEST_NEW_ENTRY = "newEntry"
     }
 }

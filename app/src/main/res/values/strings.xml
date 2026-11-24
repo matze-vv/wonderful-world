@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Wonderful World</string>
+    <string name="widget_add_label">Neu: Mission oder Erlebnis</string>
+    <string name="widget_add_description">Ein Tipp öffnet die Auswahl: neue Mission oder neues Erlebnis.</string>
 </resources>

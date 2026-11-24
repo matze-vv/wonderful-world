@@ -59,6 +59,9 @@ fun AppNavigation(pendingDest: MutableStateFlow<String?>) {
         val d = dest ?: return@LaunchedEffect
         when (d) {
             "planning" -> nav.navigate("planning") { launchSingleTop = true }
+            // Vom Widget: erst Dashboard, darüber die neue Mission bzw. das neue Erlebnis (Zurück → Dashboard)
+            "newMission" -> { nav.switchTab("dashboard"); nav.navigate("mission?id=0&tag=0") }
+            "newEntry" -> { nav.switchTab("dashboard"); nav.navigate("entry?id=0") }
             else -> nav.switchTab(d)
         }
         pendingDest.value = null
