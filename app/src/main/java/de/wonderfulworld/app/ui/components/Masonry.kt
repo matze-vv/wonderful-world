@@ -55,7 +55,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import de.wonderfulworld.app.data.TileLayout
 import de.wonderfulworld.app.data.TileSize
@@ -88,6 +87,34 @@ fun mergeOrder(saved: List<String>, defaults: List<String>): List<String> {
     return result
 }
 
+/** Gemessene Kachel: breit oder schmal, Höhe in px. */
+data class TileMeasure(val wide: Boolean, val height: Int)
+
+/**
+ * Mauerwerk-Positionen berechnen: schmale Kacheln in die kürzere Spalte (bei Gleichstand links),
+ * breite über beide Spalten unter die längere.
+ */
+fun computeSlots(order: List<String>, measures: Map<String, TileMeasure>, width: Int, gap: Int): Map<String, Rect> {
+    val half = (width - gap) / 2
+    val col = intArrayOf(0, 0)
+    val out = LinkedHashMap<String, Rect>()
+    for (k in order) {
+        val m = measures[k] ?: continue
+        if (m.wide) {
+            val y = maxOf(col[0], col[1])
+            out[k] = Rect(0f, y.toFloat(), width.toFloat(), (y + m.height).toFloat())
+            col[0] = y + m.height + gap; col[1] = col[0]
+        } else {
+            val c = if (col[0] <= col[1]) 0 else 1
+            val x = if (c == 0) 0 else half + gap
+            val y = col[c]
+            out[k] = Rect(x.toFloat(), y.toFloat(), (x + half).toFloat(), (y + m.height).toFloat())
+            col[c] = y + m.height + gap
+        }
+    }
+    return out
+}
+
 /** Eine Kachel im verschiebbaren Mauerwerk. */
 class MasonryItem(
     val key: String,
@@ -106,16 +133,19 @@ class MasonryState {
         private set
     var order by mutableStateOf<List<String>>(emptyList())
         private set
-    internal val slots = HashMap<String, Rect>()
+    internal var slots: Map<String, Rect> = emptyMap()
+    internal var measures: Map<String, TileMeasure> = emptyMap()
+    internal var width = 0
+    internal var gap = 0
     internal var grab = Offset.Zero
     internal var windowY = 0f
-    private var lastTarget: String? = null
 
     internal fun start(key: String, base: List<String>, grabAt: Offset) {
         order = base
+        this.base = base.filter { it != key }
+        current = base.indexOf(key).coerceAtLeast(0)
         dragPos = slots[key]?.topLeft ?: Offset.Zero
         grab = grabAt
-        lastTarget = null
         dragKey = key
     }
 
@@ -129,19 +159,53 @@ class MasonryState {
         retarget()
     }
 
-    /** Kachel unter der Mitte der gezogenen Kachel finden und die gezogene an deren Stelle setzen. */
+    /** Messdaten aus dem Layout übernehmen und Positionen berechnen. */
+    internal fun setLayout(order: List<String>, measures: Map<String, TileMeasure>, width: Int, gap: Int): Map<String, Rect> {
+        this.measures = measures; this.width = width; this.gap = gap
+        slots = computeSlots(order, measures, width, gap)
+        return slots
+    }
+
+    /** Reihenfolge ohne die gezogene Kachel – bleibt während des Ziehens fest. */
+    private var base: List<String> = emptyList()
+    private var current = 0
+
+    /**
+     * Umsortieren nach der Fingerposition. Für jede mögliche Einfügestelle wird ausgehend von
+     * einer FESTEN Ausgangslage (Reihenfolge ohne die gezogene Kachel) berechnet, wo die Kachel
+     * landen würde; gewählt wird die Stelle, die dem Finger am nächsten liegt.
+     *
+     * Früher wurde mit der Kachel unter der gezogenen getauscht. Im Mauerwerk wechseln dabei aber
+     * andere Kacheln die Spalte – bei sehr großen Kacheln lag danach eine andere Kachel unter dem
+     * Finger, es wurde zurückgetauscht und die große Kachel sprang hin und her.
+     */
     private fun retarget() {
         val k = dragKey ?: return
-        val r = slots[k] ?: return
-        val center = dragPos + Offset(r.width / 2, r.height / 2)
-        val target = order.firstOrNull { it != k && slots[it]?.contains(center) == true }
-        if (target == null) { lastTarget = null; return }
-        if (target == lastTarget) return
-        lastTarget = target
-        val from = order.indexOf(k)
-        val to = order.indexOf(target)
-        order = order.toMutableList().apply { removeAt(from); add(to, k) }
+        if (base.isEmpty() && order.size > 1) return
+        val p = dragPos + grab
+        val scores = (0..base.size).map { i ->
+            val candidate = base.toMutableList().apply { add(i, k) }
+            score(computeSlots(candidate, measures, width, gap)[k] ?: return, p)
+        }
+        val best = scores.indices.minBy { scores[it] }
+        // Hysterese: erst wechseln, wenn die neue Stelle deutlich näher ist (verhindert Zittern an Grenzen)
+        if (best != current && scores[best] + hysteresis < scores[current]) {
+            current = best
+            order = base.toMutableList().apply { add(best, k) }
+            slots = computeSlots(order, measures, width, gap)
+        }
     }
+
+    /** Abstand Finger ↔ Kachel (0, wenn darin) plus ein kleiner Anteil des Abstands zur Mitte. */
+    private fun score(r: Rect, p: Offset): Float {
+        val dx = maxOf(r.left - p.x, 0f, p.x - r.right)
+        val dy = maxOf(r.top - p.y, 0f, p.y - r.bottom)
+        // waagerecht stärker gewichtet: die Spalte unter dem Finger hat Vorrang
+        return kotlin.math.hypot(3 * dx, dy) + 0.25f * (r.center - p).getDistance()
+    }
+
+    /** Mindestverbesserung in px, ab der umsortiert wird. */
+    internal var hysteresis = 40f
 
     internal fun end(): List<String> {
         dragKey = null
@@ -165,6 +229,7 @@ fun ReorderableMasonry(
     gap: Dp = 12.dp,
 ) {
     val state = remember { MasonryState() }
+    state.hysteresis = with(LocalDensity.current) { 16.dp.toPx() }
     val byKey = items.associateBy { it.key }
     val shown = (if (state.dragKey != null) state.order else order).filter { it in byKey }
     val haptic = LocalHapticFeedback.current
@@ -248,36 +313,26 @@ fun ReorderableMasonry(
         val g = gap.roundToPx()
         val w = constraints.maxWidth
         val half = (w - g) / 2
-        val col = intArrayOf(0, 0)
         val dragging = state.dragKey
-        val placed = measurables.map { m ->
+        val placeables = measurables.associate { m ->
             val k = m.layoutId as String
             val isWide = byKey[k]?.wide ?: false
-            val p = m.measure(Constraints.fixedWidth(if (isWide) w else half))
-            val (x, y) = if (isWide) {
-                val y = maxOf(col[0], col[1])
-                col[0] = y + p.height + g; col[1] = col[0]
-                0 to y
-            } else {
-                val c = if (col[0] <= col[1]) 0 else 1
-                val y = col[c]
-                col[c] = y + p.height + g
-                (if (c == 0) 0 else half + g) to y
-            }
-            state.slots[k] = Rect(x.toFloat(), y.toFloat(), (x + p.width).toFloat(), (y + p.height).toFloat())
-            Triple(k, p, IntOffset(x, y))
+            k to (isWide to m.measure(Constraints.fixedWidth(if (isWide) w else half)))
         }
-        state.slots.keys.retainAll(placed.map { it.first }.toSet())
-        val h = (maxOf(col[0], col[1]) - g).coerceAtLeast(0)
+        val keys = measurables.map { it.layoutId as String }
+        val slots = state.setLayout(keys, placeables.mapValues { (_, v) -> TileMeasure(v.first, v.second.height) }, w, g)
+        val h = slots.values.maxOfOrNull { it.bottom.toInt() } ?: 0
         layout(w, h) {
-            placed.forEach { (k, p, pos) ->
+            keys.forEach { k ->
+                val p = placeables.getValue(k).second
                 if (k == dragging) {
                     val dp = state.dragPos
                     p.placeWithLayer(dp.x.roundToInt(), dp.y.roundToInt(), zIndex = 1f) {
                         scaleX = 1.04f; scaleY = 1.04f; shadowElevation = 24f; alpha = 0.95f
                     }
                 } else {
-                    p.place(pos)
+                    val r = slots.getValue(k)
+                    p.place(r.left.toInt(), r.top.toInt())
                 }
             }
         }

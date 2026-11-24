@@ -4,7 +4,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.Autorenew
 import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.ModalBottomSheet
@@ -161,7 +163,8 @@ fun DashboardScreen(
 
     val week = Dates.weekStart(today)
     val month = Dates.missionMonth(today)
-    val monthMissions = missions.filter { it.month == month && it.resolution == null }
+    val monthMissions = missions.filter { it.showsIn(month) }
+    LaunchedEffect(today) { vm.repo.resetWeeklyMissions(today) }
     val (groups, untagged) = groupByTag(monthMissions, tags)
     val settings by vm.app.settings.settings.collectAsStateWithLifecycle()
     var menuFor by remember { mutableStateOf<TileSpec?>(null) }
@@ -493,11 +496,21 @@ private fun MissionLine(
                 textDecoration = if (m.isDone) TextDecoration.LineThrough else null,
                 maxLines = if (compact) 1 else 2, overflow = TextOverflow.Ellipsis,
             )
+            if (m.weekly && !compact) WeeklyBadge(c.muted)
             if (!compact && m.detail.isNotBlank()) Text(m.detail, maxLines = maxDetailLines, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = c.muted)
             if (m.counter && !compact) Text("${m.progress}/${m.target}", style = MaterialTheme.typography.labelMedium, color = c.muted)
             ProgressLine(m.progress.toFloat() / m.target, color, c.track)
         }
         QuickButton(m, color) { onQuick(m) }
+    }
+}
+
+/** Kleiner Hinweis „wöchentlich“ mit Wiederholen-Symbol. */
+@Composable
+fun WeeklyBadge(color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Icon(Icons.Rounded.Autorenew, null, tint = color, modifier = Modifier.size(14.dp))
+        Text("wöchentlich", style = MaterialTheme.typography.labelSmall, color = color)
     }
 }
 

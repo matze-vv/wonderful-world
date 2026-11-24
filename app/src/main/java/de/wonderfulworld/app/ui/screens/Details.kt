@@ -182,7 +182,7 @@ fun TagMissionsScreen(tagId: Long, onBack: () -> Unit, onEditMission: (Long) -> 
     val known = tags.map { it.id }.toSet()
     var pendingDelete by remember { mutableStateOf<Mission?>(null) }
     val list = missions.filter {
-        it.month == month && it.resolution == null &&
+        it.showsIn(month) &&
             (if (tagId == 0L) it.tagId == null || it.tagId !in known else it.tagId == tagId)
     }
     val color = tagColor(tag)
@@ -236,6 +236,7 @@ fun TagMissionsScreen(tagId: Long, onBack: () -> Unit, onEditMission: (Long) -> 
                             QuickButton(m, color) { vm.launch { vm.repo.updateMission(m.copy(progress = if (m.isDone) 0 else 1)) } }
                         }
                     }
+                    if (m.weekly) WeeklyBadge(c.muted)
                     ProgressLine(m.progress.toFloat() / m.target, color, c.track, height = 8.dp)
                     if (m.detail.isNotBlank()) Text(m.detail, style = MaterialTheme.typography.bodyLarge, color = c.content)
                 }

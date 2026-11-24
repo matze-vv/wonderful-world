@@ -21,7 +21,14 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Autorenew
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.AlertDialog
@@ -78,10 +85,11 @@ class MissionEditViewModel(val app: WonderfulWorldApp) : ViewModel() {
     var tagId by mutableStateOf<Long?>(null)
     var counter by mutableStateOf(false)
     var target by mutableIntStateOf(4)
+    var weekly by mutableStateOf(false)
     private var loaded = false
     /** Stand beim Öffnen – zum Erkennen ungespeicherter Änderungen. */
     private var initial by mutableStateOf<List<Any?>>(emptyList())
-    private fun snapshot(): List<Any?> = listOf(title.trim(), detail.trim(), tagId, counter, if (counter) target else 0)
+    private fun snapshot(): List<Any?> = listOf(title.trim(), detail.trim(), tagId, counter, if (counter) target else 0, weekly)
     val hasChanges: Boolean get() = initial.isNotEmpty() && snapshot() != initial
 
     fun load(id: Long, presetTag: Long) {
@@ -93,6 +101,7 @@ class MissionEditViewModel(val app: WonderfulWorldApp) : ViewModel() {
             repo.mission(id)?.let { m ->
                 original = m; title = m.title; detail = m.detail; tagId = m.tagId
                 counter = m.counter; target = if (m.counter) m.target else 4
+                weekly = m.weekly
             }
             initial = snapshot()
         }
@@ -105,12 +114,12 @@ class MissionEditViewModel(val app: WonderfulWorldApp) : ViewModel() {
     fun save(onDone: () -> Unit) = viewModelScope.launch {
         val o = original
         if (o == null) {
-            repo.addMission(Dates.missionMonth(LocalDate.now()), title, counter, target, detail, tagId)
+            repo.addMission(Dates.missionMonth(LocalDate.now()), title, counter, target, detail, tagId, weekly)
         } else {
             val t = if (counter) target else 1
             repo.updateMission(
                 o.copy(
-                    title = title.trim(), detail = detail.trim(), tagId = tagId, counter = counter, target = t,
+                    title = title.trim(), detail = detail.trim(), tagId = tagId, counter = counter, target = t, weekly = weekly,
                     progress = if (counter) o.progress.coerceAtMost(t) else minOf(o.progress, 1),
                 )
             )
@@ -231,6 +240,26 @@ fun MissionEditScreen(id: Long, presetTag: Long, onDone: () -> Unit) {
                     }
                 }
                 Text("Jeder Tag bekommt im Dashboard eine eigene Kachel.", style = MaterialTheme.typography.bodySmall, color = c.muted)
+            }
+
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.container)
+                    .toggleable(value = vm.weekly, role = Role.Switch) { vm.weekly = it }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Rounded.Autorenew, null, tint = c.accent)
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    Text("Wöchentlich?", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = c.content)
+                    Text(
+                        "Kommt jede Woche wieder – der Fortschritt wird jeden Sonntag zurückgesetzt.",
+                        style = MaterialTheme.typography.bodySmall, color = c.muted,
+                    )
+                }
+                Switch(
+                    checked = vm.weekly, onCheckedChange = null,
+                    colors = SwitchDefaults.colors(checkedTrackColor = c.accent, checkedThumbColor = MaterialTheme.colorScheme.surface),
+                )
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

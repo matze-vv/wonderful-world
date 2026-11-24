@@ -37,6 +37,7 @@ class WonderfulWorldApp : Application() {
         Notifications.createChannels(this)
         appScope.launch {
             repo.ensureDefaults()
+            repo.resetWeeklyMissions()
             scheduler.rescheduleAll()
         }
     }

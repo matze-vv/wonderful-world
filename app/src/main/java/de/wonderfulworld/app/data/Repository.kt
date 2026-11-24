@@ -67,16 +67,24 @@ class Repository(val db: AppDatabase, val photos: PhotoStore) {
 
     suspend fun mission(id: Long) = missionDao.byId(id)
 
-    suspend fun addMission(month: YearMonth, title: String, counter: Boolean, target: Int, detail: String = "", tagId: Long? = null) {
+    suspend fun addMission(
+        month: YearMonth, title: String, counter: Boolean, target: Int,
+        detail: String = "", tagId: Long? = null, weekly: Boolean = false,
+    ) {
         missionDao.insert(
             Mission(
                 month = month, title = title.trim(), counter = counter,
                 target = if (counter) target.coerceAtLeast(1) else 1,
                 createdAt = System.currentTimeMillis(),
-                detail = detail.trim(), tagId = tagId,
+                detail = detail.trim(), tagId = tagId, weekly = weekly,
+                progressWeek = if (weekly) Dates.weekStart(LocalDate.now()) else null,
             )
         )
     }
+
+    /** Wöchentliche Missionen zu Beginn einer neuen Woche (Sonntag) zurücksetzen. */
+    suspend fun resetWeeklyMissions(today: LocalDate = LocalDate.now()) =
+        missionDao.resetWeekly(Dates.weekStart(today))
 
     // ---------- Tags ----------
 
@@ -95,7 +103,12 @@ class Repository(val db: AppDatabase, val photos: PhotoStore) {
         tagDao.delete(t.id)
     }
 
-    suspend fun updateMission(m: Mission) = missionDao.update(m.copy(progress = m.progress.coerceIn(0, m.target)))
+    suspend fun updateMission(m: Mission) = missionDao.update(
+        m.copy(
+            progress = m.progress.coerceIn(0, m.target),
+            progressWeek = if (m.weekly) Dates.weekStart(LocalDate.now()) else null,
+        )
+    )
 
     suspend fun deleteMission(m: Mission) = missionDao.delete(m.id)
 

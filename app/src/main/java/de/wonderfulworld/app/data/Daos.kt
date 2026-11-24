@@ -41,6 +41,13 @@ interface MissionDao {
     @Update suspend fun update(m: Mission)
     @Query("DELETE FROM missions WHERE id = :id") suspend fun delete(id: Long)
 
+    /** Wöchentliche Missionen zurücksetzen, deren Fortschritt aus einer früheren Woche stammt. */
+    @Query(
+        "UPDATE missions SET progress = 0, progressWeek = :week " +
+            "WHERE weekly = 1 AND (progressWeek IS NULL OR progressWeek < :week)"
+    )
+    suspend fun resetWeekly(week: LocalDate): Int
+
     @Query("SELECT * FROM month_plans") fun observeMonthPlans(): Flow<List<MonthPlan>>
     @Upsert suspend fun upsertMonthPlan(p: MonthPlan)
 }

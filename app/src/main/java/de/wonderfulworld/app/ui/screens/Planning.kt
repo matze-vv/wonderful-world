@@ -209,7 +209,7 @@ fun PlanningScreen(onDone: () -> Unit, onEditMission: (Long) -> Unit, onNewMissi
 
             // ---------- 2. Missionen ----------
             if (planMonth) {
-                val open = missions.filter { it.month == prevMonth && it.isOpen }
+                val open = missions.filter { it.month == prevMonth && it.isOpen && !it.weekly }
                 if (open.isNotEmpty()) {
                     item { SectionTitle("Offen aus dem ${prevMonth.monthNameDe()}") }
                     item {
@@ -235,7 +235,7 @@ fun PlanningScreen(onDone: () -> Unit, onEditMission: (Long) -> Unit, onNewMissi
             }
             item {
                 PaperCard {
-                    val ms = missions.filter { it.month == month && it.resolution == null }
+                    val ms = missions.filter { it.showsIn(month) }
                     if (ms.isEmpty()) Muted("Kleine Ziele für diesen Monat – z. B. „2× wandern“ oder „Buch fertig lesen“.")
                     ms.forEach { m -> MissionRow(m, m.tagId?.let(tagById::get), onClick = { onEditMission(m.id) }) }
                 }

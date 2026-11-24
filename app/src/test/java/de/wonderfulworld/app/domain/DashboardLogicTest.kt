@@ -26,4 +26,14 @@ class DashboardLogicTest {
         assertEquals(listOf(1L, 4L), groups[0].missions.map { it.id })
         assertEquals(listOf(2L, 5L), untagged.map { it.id })            // auch Missionen mit gelöschtem Tag
     }
+
+    @Test fun weeklyMissionsShowInLaterMonths() {
+        val nov = YearMonth.of(2026, 11)
+        val weekly = Mission(1, nov, "Sport", false, 1, createdAt = 0, weekly = true)
+        val once = Mission(2, nov, "Buch", false, 1, createdAt = 0)
+        assert(weekly.showsIn(nov) && weekly.showsIn(nov.plusMonths(3)))
+        assert(!weekly.showsIn(nov.minusMonths(1)))
+        assert(once.showsIn(nov) && !once.showsIn(nov.plusMonths(1)))
+        assert(!weekly.copy(resolution = Mission.RESOLUTION_ARCHIVED).showsIn(nov))
+    }
 }

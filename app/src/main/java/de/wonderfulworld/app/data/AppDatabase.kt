@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Ritual::class, WeekPlan::class, RitualSchedule::class, RitualCheck::class,
         Mission::class, MonthPlan::class, JournalEntry::class, AlarmSetting::class, Tag::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -28,8 +28,16 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "wonderful-world.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
+
+        /** v3: wöchentlich wiederkehrende Missionen. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE missions ADD COLUMN weekly INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE missions ADD COLUMN progressWeek INTEGER")
+            }
+        }
 
         /** v2: Detailtexte, Standard-Tage und Pausieren für Rituale, Tags für Missionen. */
         val MIGRATION_1_2 = object : Migration(1, 2) {

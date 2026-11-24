@@ -32,11 +32,12 @@ class MigrationTest {
             execSQL("INSERT INTO journal_entries (id, timestamp, text, photo) VALUES (1, 0, 'Hallo', 'a.jpg')")
             close()
         }
-        // Validiert zugleich das Schema gegen die Room-Entities von Version 2.
+        // Validiert zugleich das Schema gegen die Room-Entities der jeweiligen Version.
         helper.runMigrationsAndValidate(dbName, 2, true, AppDatabase.MIGRATION_1_2).close()
+        helper.runMigrationsAndValidate(dbName, 3, true, AppDatabase.MIGRATION_2_3).close()
 
         val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java, dbName)
-            .addMigrations(AppDatabase.MIGRATION_1_2).allowMainThreadQueries().build()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3).allowMainThreadQueries().build()
         runBlocking {
             val r = db.ritualDao().rituals().single()
             assertEquals("Laufen", r.name)
@@ -47,9 +48,35 @@ class MigrationTest {
             assertEquals(2, m.progress)
             assertEquals("", m.detail)
             assertNull(m.tagId)
+            assertEquals(false, m.weekly)
+            assertNull(m.progressWeek)
             assertEquals("Hallo", db.backupDao().journal().single().text)
             db.tagDao().insert(Tag(name = "Draußen", color = 0xFF4C8A4A.toInt()))
             assertEquals(1, db.tagDao().all().size)
+        }
+        db.close()
+    }
+
+    @Test
+    fun weeklyMissionsResetOnSunday() {
+        val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java)
+            .allowMainThreadQueries().build()
+        runBlocking {
+            val dao = db.missionDao()
+            val lastWeek = LocalDate.of(2026, 11, 22) // Sonntag
+            dao.insert(Mission(month = java.time.YearMonth.of(2026, 11), title = "Sport", counter = true, target = 3, progress = 3,
+                createdAt = 0, weekly = true, progressWeek = lastWeek))
+            dao.insert(Mission(month = java.time.YearMonth.of(2026, 11), title = "Buch", counter = false, target = 1, progress = 1,
+                createdAt = 0))
+            // Samstag derselben Woche: nichts passiert
+            assertEquals(0, dao.resetWeekly(lastWeek))
+            // Neue Woche (Sonntag 29.11.): nur die wöchentliche Mission wird zurückgesetzt
+            assertEquals(1, dao.resetWeekly(LocalDate.of(2026, 11, 29)))
+            val all = dao.observeAll().first().associateBy { it.title }
+            assertEquals(0, all.getValue("Sport").progress)
+            assertEquals(1, all.getValue("Buch").progress)
+            // zweiter Aufruf in derselben Woche ändert nichts
+            assertEquals(0, dao.resetWeekly(LocalDate.of(2026, 11, 29)))
         }
         db.close()
     }

@@ -55,7 +55,7 @@ object Notifications {
         val today = LocalDate.now()
         val rituals = repo.calendarNow().dueRituals(today).map { it.name }
         val month = Dates.missionMonth(today)
-        val mission = repo.missions.first().filter { it.month == month && it.isOpen }.randomOrNull()
+        val mission = repo.missions.first().filter { it.showsIn(month) && it.isOpen }.randomOrNull()
 
         val lines = buildList {
             add(if (rituals.isEmpty()) "Heute keine Rituale – Raum für etwas Schönes." else "Heute: " + rituals.joinToString(", "))

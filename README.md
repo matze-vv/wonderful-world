@@ -20,6 +20,7 @@ Alle APKs sind mit demselben Schlüssel (`app/debug.keystore`) signiert. Updates
 - **Kachel gedrückt halten + ziehen** verschiebt sie (Reihenfolge wird gespeichert). **Gedrückt halten + loslassen** öffnet das Größenmenü: schmal/breit und Höhe Variabel (Standard), XS (nur Einzelmissionen), S, M, L, XL. Kacheln sind als Mauerwerk angeordnet – Nachbarn wachsen nicht mit.
 - Missionen **ohne Tag** bekommen je eine eigene Kachel; Antippen öffnet direkt die Bearbeitung.
 - **+** unten rechts: neue Mission oder neues Erlebnis.
+- **Wöchentliche Missionen** (Schalter „Wöchentlich?“): gelten in jedem Monat, ihr Fortschritt wird zu Beginn jeder Woche (Sonntag) zurückgesetzt – beim Öffnen der App, durch Sonntags-Erinnerung/Morgen-Impuls oder nach einem Neustart.
 - Tag-Ansicht: Mission **nach links wischen** löscht sie (mit Rückfrage).
 - **Mehr:** gespeicherte Rituale (Details, Standard-Tage, aktiv/pausiert) und Tags (Name, Farbe) verwalten, dazu Einstellungen und Backup.
 - **Neues Erlebnis:** Foto-Kachel oben (+ zum Hinzufügen, Tippen = Vollbild, Halten = ändern), Text-Kachel darunter. Fotos lassen sich frei zuschneiden und geraderücken (±45°).

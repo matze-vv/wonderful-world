@@ -30,10 +30,12 @@ class AlarmReceiver : BroadcastReceiver() {
                 runAsync { app.scheduler.scheduleNextAlarm(LocalDateTime.now().plusMinutes(1)) }
             }
             ACTION_IMPULSE -> runAsync {
+                app.repo.resetWeeklyMissions()
                 Notifications.showImpulse(context)
                 app.scheduler.scheduleNextImpulse(LocalDateTime.now().plusMinutes(1))
             }
             ACTION_SUNDAY -> runAsync {
+                app.repo.resetWeeklyMissions()
                 val week = Dates.weekStart(LocalDate.now())
                 if (!app.repo.calendarNow().isWeekPlanned(week)) Notifications.showPlanningReminder(context)
                 app.scheduler.scheduleSundayReminder(LocalDateTime.now().plusMinutes(1))
@@ -51,6 +53,9 @@ class AlarmReceiver : BroadcastReceiver() {
 /** Nach Neustart, App-Update oder Zeitänderung alle Wecker und Erinnerungen neu setzen. */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        runAsync { context.app.scheduler.rescheduleAll() }
+        runAsync {
+            context.app.repo.resetWeeklyMissions()
+            context.app.scheduler.rescheduleAll()
+        }
     }
 }

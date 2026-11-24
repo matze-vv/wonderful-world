@@ -69,11 +69,18 @@ data class Mission(
     val resolution: String? = null,
     val createdAt: Long,
     @ColumnInfo(defaultValue = "''") val detail: String = "",
-    /** Tag der Mission oder null (= „Allgemein“). */
+    /** Tag der Mission oder null (= ohne Tag). */
     val tagId: Long? = null,
+    /** Wöchentlich wiederkehrend: gilt in jedem Monat, Fortschritt wird jeden Sonntag zurückgesetzt. */
+    @ColumnInfo(defaultValue = "0") val weekly: Boolean = false,
+    /** Woche (Sonntag), in der der Fortschritt zuletzt gesetzt wurde – nur für wöchentliche Missionen. */
+    val progressWeek: LocalDate? = null,
 ) {
     val isDone: Boolean get() = progress >= target
     val isOpen: Boolean get() = !isDone && resolution == null
+
+    /** Gehört die Mission in diesen Missionsmonat? Wöchentliche gelten in jedem Monat ab ihrem Start. */
+    fun showsIn(m: YearMonth): Boolean = resolution == null && (month == m || (weekly && month <= m))
 
     companion object {
         const val RESOLUTION_CARRIED = "CARRIED"
