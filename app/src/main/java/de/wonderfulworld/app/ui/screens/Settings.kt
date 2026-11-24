@@ -102,7 +102,7 @@ fun SettingsScreen() {
 
         SectionTitle("Backup")
         PaperCard {
-            Muted("Alle Daten bleiben auf dem Handy. Ein Backup ist eine ZIP-Datei mit allen Einträgen, Ritualen, Missionen, Weckzeiten und Fotos.")
+            Muted("Alle Daten bleiben auf dem Handy. Ein Backup ist eine ZIP-Datei mit allen Erlebnissen, Ritualen, Missionen, Weckzeiten und Fotos.")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(enabled = !vm.busy, onClick = {
                     exportLauncher.launch("wonderful-world-backup-${LocalDate.now()}.zip")

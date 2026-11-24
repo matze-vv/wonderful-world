@@ -159,6 +159,8 @@ fun TagChip(name: String, color: Color, modifier: Modifier = Modifier, large: Bo
         style = if (large) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.ExtraBold,
         maxLines = 1,
+        softWrap = false,
+        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
     )
 }
 

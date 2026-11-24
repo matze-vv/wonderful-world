@@ -149,7 +149,7 @@ fun ArchiveScreen(onOpenEntry: (Long) -> Unit) {
                 item { SectionTitle("Missionen · ${month.monthNameDe()}") }
                 item { MissionList(missions.filter { it.month == month }, tagById) }
                 item { SectionTitle("Tagebuch") }
-                if (entries.isEmpty()) item { PaperCard { Muted("Keine Einträge in dieser Woche.") } }
+                if (entries.isEmpty()) item { PaperCard { Muted("Keine Erlebnisse in dieser Woche.") } }
                 items(entries.sortedBy { it.timestamp }, key = { it.id }) { e ->
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(e.dateTime().toLocalDate().fullDe(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
@@ -170,7 +170,7 @@ fun ArchiveScreen(onOpenEntry: (Long) -> Unit) {
                 PaperCard {
                     MonthGrid(ym, today, c, entryDays) { dayDetail = it.toEpochDay() }
                     if (monthQuote.due > 0) Muted("Rituale: ${monthQuote.done} von ${monthQuote.due} erledigt (${monthQuote.percent} %)")
-                    Muted("${entryDays.filterKeys { YearMonth.from(it) == ym }.values.sumOf { it.size }} Tagebucheinträge")
+                    Muted("${entryDays.filterKeys { YearMonth.from(it) == ym }.values.sumOf { it.size }} Erlebnisse")
                 }
                 SectionTitle("Missionen")
                 Muted("Missionsmonat ${from.dmDe()} – ${to.dmDe()}")

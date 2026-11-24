@@ -192,7 +192,7 @@ fun PlanningScreen(onDone: () -> Unit, onEditMission: (Long) -> Unit, onNewMissi
                     }
                     val entryCount = journal.count { val d = it.dateTime().toLocalDate(); d >= prevWeek && d < week }
                     HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                    Text("Tagebuch: $entryCount Einträge", style = MaterialTheme.typography.bodyLarge)
+                    Text("Tagebuch: $entryCount " + if (entryCount == 1) "Erlebnis" else "Erlebnisse", style = MaterialTheme.typography.bodyLarge)
                     if (photos.isNotEmpty()) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(photos, key = { it.id }) { e ->

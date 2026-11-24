@@ -213,8 +213,8 @@ fun EntryScreen(id: Long, onDone: () -> Unit) {
         contentWindowInsets = WindowInsets(0),
         containerColor = c.background,
         topBar = {
-            BackTopBar(if (id == 0L) "Neuer Eintrag" else "Eintrag bearbeiten", { vm.discard(onDone) }, c.background, c.content) {
-                if (vm.original != null) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Rounded.Delete, "Eintrag löschen") }
+            BackTopBar(if (id == 0L) "Neues Erlebnis" else "Erlebnis bearbeiten", { vm.discard(onDone) }, c.background, c.content) {
+                if (vm.original != null) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Rounded.Delete, "Erlebnis löschen") }
             }
         },
         bottomBar = {
@@ -306,7 +306,7 @@ fun EntryScreen(id: Long, onDone: () -> Unit) {
                         cursorColor = c.accent, focusedPlaceholderColor = c.muted, unfocusedPlaceholderColor = c.muted,
                     ),
                     minLines = 6,
-                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Text des Eintrags" },
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Text des Erlebnisses" },
                 )
             }
         }
@@ -339,7 +339,7 @@ fun EntryScreen(id: Long, onDone: () -> Unit) {
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Eintrag löschen?") },
+            title = { Text("Erlebnis löschen?") },
             text = { Text("Text und Foto werden endgültig gelöscht.") },
             confirmButton = { TextButton(onClick = { confirmDelete = false; vm.delete(onDone) }) { Text("Löschen") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Abbrechen") } },

@@ -1,5 +1,6 @@
 package de.wonderfulworld.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -78,17 +79,22 @@ class MissionEditViewModel(val app: WonderfulWorldApp) : ViewModel() {
     var counter by mutableStateOf(false)
     var target by mutableIntStateOf(4)
     private var loaded = false
+    /** Stand beim Öffnen – zum Erkennen ungespeicherter Änderungen. */
+    private var initial by mutableStateOf<List<Any?>>(emptyList())
+    private fun snapshot(): List<Any?> = listOf(title.trim(), detail.trim(), tagId, counter, if (counter) target else 0)
+    val hasChanges: Boolean get() = initial.isNotEmpty() && snapshot() != initial
 
     fun load(id: Long, presetTag: Long) {
         if (loaded) return
         loaded = true
         if (presetTag > 0) tagId = presetTag
-        if (id == 0L) return
+        if (id == 0L) { initial = snapshot(); return }
         viewModelScope.launch {
             repo.mission(id)?.let { m ->
                 original = m; title = m.title; detail = m.detail; tagId = m.tagId
                 counter = m.counter; target = if (m.counter) m.target else 4
             }
+            initial = snapshot()
         }
     }
 
@@ -128,6 +134,9 @@ fun MissionEditScreen(id: Long, presetTag: Long, onDone: () -> Unit) {
     var adding by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf("") }
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmLeave by remember { mutableStateOf(false) }
+    val back = { if (vm.hasChanges) confirmLeave = true else onDone() }
+    BackHandler(onBack = back)
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = c.accent, unfocusedBorderColor = c.track,
         focusedLabelColor = c.accent, cursorColor = c.accent,
@@ -142,7 +151,7 @@ fun MissionEditScreen(id: Long, presetTag: Long, onDone: () -> Unit) {
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         containerColor = c.background,
-        topBar = { BackTopBar(if (id == 0L) "Neue Mission" else "Mission bearbeiten", onDone, c.background, c.content) },
+        topBar = { BackTopBar(if (id == 0L) "Neue Mission" else "Mission bearbeiten", back, c.background, c.content) },
         bottomBar = {
             Row(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (vm.original != null) TextButton(onClick = { confirmDelete = true }) {
@@ -255,6 +264,20 @@ fun MissionEditScreen(id: Long, presetTag: Long, onDone: () -> Unit) {
         }
     }
 
+    if (confirmLeave) AlertDialog(
+        onDismissRequest = { confirmLeave = false },
+        title = { Text("Änderungen speichern?") },
+        text = { Text("Du hast Änderungen an dieser Mission, die noch nicht gespeichert sind.") },
+        confirmButton = {
+            TextButton(onClick = { confirmLeave = false; vm.save(onDone) }, enabled = vm.title.isNotBlank()) { Text("Speichern") }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = { confirmLeave = false; onDone() }) { Text("Verwerfen", color = MaterialTheme.colorScheme.error) }
+                TextButton(onClick = { confirmLeave = false }) { Text("Abbrechen") }
+            }
+        },
+    )
     if (confirmDelete) AlertDialog(
         onDismissRequest = { confirmDelete = false },
         title = { Text("Mission löschen?") },

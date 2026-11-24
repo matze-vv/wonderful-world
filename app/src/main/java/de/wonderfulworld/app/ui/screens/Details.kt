@@ -32,6 +32,13 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import de.wonderfulworld.app.data.Mission
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -164,11 +171,7 @@ fun RitualsTodayScreen(onBack: () -> Unit) {
 // ---------------------------------------------------------------- Missionen eines Tags
 
 @Composable
-fun TagMissionsScreen(
-    tagId: Long, onBack: () -> Unit, onEditMission: (Long) -> Unit, onNewMission: (Long) -> Unit,
-    /** > 0: nur diese eine Mission (ohne Tag) zeigen. */
-    onlyMission: Long = 0L,
-) {
+fun TagMissionsScreen(tagId: Long, onBack: () -> Unit, onEditMission: (Long) -> Unit, onNewMission: (Long) -> Unit) {
     val vm = appViewModel { DetailViewModel(it) }
     val today = rememberToday()
     val missions by vm.repo.missions.collectAsStateWithLifecycle(emptyList())
@@ -177,17 +180,18 @@ fun TagMissionsScreen(
     val month = Dates.missionMonth(today)
     val tag = tags.firstOrNull { it.id == tagId }
     val known = tags.map { it.id }.toSet()
-    val list = if (onlyMission > 0) missions.filter { it.id == onlyMission } else missions.filter {
+    var pendingDelete by remember { mutableStateOf<Mission?>(null) }
+    val list = missions.filter {
         it.month == month && it.resolution == null &&
             (if (tagId == 0L) it.tagId == null || it.tagId !in known else it.tagId == tagId)
     }
-    val color = if (onlyMission > 0) c.accent else tagColor(tag)
+    val color = tagColor(tag)
 
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         containerColor = c.background,
         topBar = {
-            BackTopBar(if (onlyMission > 0) "Mission" else "", onBack, containerColor = c.background, contentColor = c.content)
+            BackTopBar("", onBack, containerColor = c.background, contentColor = c.content)
         },
     ) { inner ->
         LazyColumn(
@@ -195,14 +199,19 @@ fun TagMissionsScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (onlyMission == 0L) item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TagChip(tag?.name ?: "Ohne Tag", color, large = true)
-                    Text("  ${month.monthNameDe()}", style = MaterialTheme.typography.labelLarge, color = c.muted)
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.weight(1f, fill = false)) { TagChip(tag?.name ?: "Ohne Tag", color, large = true) }
+                    Text(month.monthNameDe(), style = MaterialTheme.typography.labelLarge, color = c.muted, maxLines = 1)
                 }
+                if (list.isNotEmpty()) Text(
+                    "Tipp: Nach links wischen löscht eine Mission.",
+                    Modifier.padding(top = 6.dp), style = MaterialTheme.typography.bodySmall, color = c.muted,
+                )
             }
             if (list.isEmpty()) item { Text("Keine Missionen mit diesem Tag in diesem Monat.", color = c.muted) }
             items(list, key = { it.id }) { m ->
+                SwipeToDelete(onDelete = { pendingDelete = m }) {
                 Column(
                     Modifier.fillMaxWidth().areaCard(c.container, border = color, radius = 20.dp)
                         .clickable { onEditMission(m.id) }.padding(16.dp),
@@ -230,8 +239,9 @@ fun TagMissionsScreen(
                     ProgressLine(m.progress.toFloat() / m.target, color, c.track, height = 8.dp)
                     if (m.detail.isNotBlank()) Text(m.detail, style = MaterialTheme.typography.bodyLarge, color = c.content)
                 }
+                }
             }
-            if (onlyMission == 0L) item {
+            item {
                 OutlinedButton(
                     onClick = { onNewMission(tagId) },
                     border = BorderStroke(2.dp, color),
@@ -240,7 +250,46 @@ fun TagMissionsScreen(
             }
         }
     }
+
+    pendingDelete?.let { m ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Mission löschen?") },
+            text = { Text("„${m.title}“ wird endgültig gelöscht.") },
+            confirmButton = {
+                TextButton(onClick = { vm.launch { vm.repo.deleteMission(m) }; pendingDelete = null }) {
+                    Text("Löschen", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Abbrechen") } },
+        )
+    }
 }
+
+/** Nach links wischen: roter Hintergrund mit Papierkorb; die Karte springt zurück, gelöscht wird erst nach Rückfrage. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
+    val current by androidx.compose.runtime.rememberUpdatedState(onDelete)
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = {
+            if (it == SwipeToDismissBoxValue.EndToStart) current()
+            false
+        },
+        positionalThreshold = { it * 0.35f },
+    )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            Box(
+                Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.error).padding(end = 24.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) { Icon(Icons.Rounded.Delete, "Löschen", tint = MaterialTheme.colorScheme.onError) }
+        },
+    ) { content() }
+}
+
 
 // ---------------------------------------------------------------- Tagebucheintrag ansehen
 
@@ -260,7 +309,7 @@ fun JournalViewScreen(id: Long, onBack: () -> Unit, onEdit: (Long) -> Unit) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             if (e?.photo != null) {
                 AsyncImage(
-                    model = vm.repo.photos.file(e.photo), contentDescription = "Foto des Eintrags",
+                    model = vm.repo.photos.file(e.photo), contentDescription = "Foto des Erlebnisses",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxWidth().height(320.dp).clickable { fullscreen = true },
                 )
