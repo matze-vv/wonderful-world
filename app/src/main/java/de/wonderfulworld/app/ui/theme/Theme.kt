@@ -6,7 +6,13 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import de.wonderfulworld.app.app
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
@@ -153,14 +159,32 @@ private val AppShapes = Shapes(
     large = RoundedCornerShape(22.dp),
 )
 
+/**
+ * App-Theme. Liest das gewählte Farbschema aus den Einstellungen;
+ * „Original“ nutzt die handabgestimmten Farben, alle anderen werden aus fünf Grundfarben abgeleitet.
+ */
 @Composable
 fun WonderfulWorldTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalWwColors provides if (dark) DarkAreas else LightAreas) {
-        MaterialTheme(
-            colorScheme = if (dark) Dark else Light,
-            typography = AppTypography,
-            shapes = AppShapes,
-            content = content,
-        )
+    val settings by LocalContext.current.app.settings.settings.collectAsState()
+    val (scheme, areas) = remember(settings.theme, settings.customTheme, dark) {
+        themeFor(settings.theme, settings.customTheme, dark)
+    }
+    ThemeFrom(scheme, areas, content)
+}
+
+/** Die handabgestimmten Original-Farben (für Vorschau). */
+fun originalTheme(dark: Boolean): Pair<ColorScheme, WwColors> =
+    (if (dark) Dark else Light) to (if (dark) DarkAreas else LightAreas)
+
+/** Farben für ein Schema – Original handabgestimmt, alle anderen abgeleitet. */
+fun themeFor(id: String, custom: de.wonderfulworld.app.data.ThemeSeeds?, dark: Boolean): Pair<ColorScheme, WwColors> =
+    if (id == "original" || (id == "custom" && custom == null)) originalTheme(dark)
+    else deriveTheme(schemeSeeds(id, custom), dark)
+
+/** Theme mit fest vorgegebenen Farben (z. B. Vorschau im Farbschema-Editor). */
+@Composable
+fun ThemeFrom(scheme: ColorScheme, areas: WwColors, content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalWwColors provides areas) {
+        MaterialTheme(colorScheme = scheme, typography = AppTypography, shapes = AppShapes, content = content)
     }
 }

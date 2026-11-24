@@ -24,6 +24,8 @@ Alle APKs sind mit demselben Schlüssel (`app/debug.keystore`) signiert. Updates
 - Tag-Ansicht: Mission **nach links wischen** löscht sie (mit Rückfrage).
 - **Mehr:** gespeicherte Rituale (Details, Standard-Tage, aktiv/pausiert) und Tags (Name, Farbe) verwalten, dazu Einstellungen und Backup.
 - **Neues Erlebnis:** Foto-Kachel oben (+ zum Hinzufügen, Tippen = Vollbild, Halten = ändern), Text-Kachel darunter. Fotos lassen sich frei zuschneiden und geraderücken (±45°).
+- **Farbschemata** (Einstellungen): Original, Frühling, Sommer, Herbst, Winter oder ein eigenes Schema aus fünf Grundfarben. Alle weiteren Töne (auch Dunkelmodus) werden berechnet und auf gut lesbare Kontraste geprüft.
+- **Widget** für den Homescreen: ein „+“, das die Auswahl Mission / Erlebnis öffnet.
 - Schrift: [Figtree](https://github.com/erikdkennedy/figtree) (SIL Open Font License, siehe `licenses/`).
 
 ## Wichtige Logik

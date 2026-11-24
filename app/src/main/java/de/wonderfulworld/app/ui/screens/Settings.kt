@@ -70,7 +70,7 @@ class SettingsViewModel(val app: WonderfulWorldApp) : ViewModel() {
 }
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onEditTheme: () -> Unit = {}) {
     val vm = appViewModel { SettingsViewModel(it) }
     val settings by vm.settings.collectAsStateWithLifecycle()
     var pickTime by remember { mutableStateOf(false) }
@@ -87,6 +87,9 @@ fun SettingsScreen() {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        SectionTitle("Farbschema")
+        ThemePicker(onEditCustom = onEditTheme)
+
         SectionTitle("Sonntagsplanung")
         PaperCard {
             Row(verticalAlignment = Alignment.CenterVertically) {

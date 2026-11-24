@@ -33,6 +33,7 @@ import de.wonderfulworld.app.ui.screens.DashboardScreen
 import de.wonderfulworld.app.ui.screens.EntryScreen
 import de.wonderfulworld.app.ui.screens.PlanningScreen
 import de.wonderfulworld.app.ui.screens.SettingsScreen
+import de.wonderfulworld.app.ui.screens.ThemeEditorScreen
 import de.wonderfulworld.app.ui.screens.JournalViewScreen
 import de.wonderfulworld.app.ui.screens.ManageScreen
 import de.wonderfulworld.app.ui.screens.MissionEditScreen
@@ -106,9 +107,10 @@ fun AppNavigation(pendingDest: MutableStateFlow<String?>) {
             composable("settings") {
                 Column {
                     BackTopBar("Einstellungen & Backup", onBack = { nav.popBackStack() })
-                    SettingsScreen()
+                    SettingsScreen(onEditTheme = { nav.navigate("themeEditor") })
                 }
             }
+            composable("themeEditor") { ThemeEditorScreen(onDone = { nav.popBackStack() }) }
             composable("planning") {
                 PlanningScreen(
                     onDone = { nav.popBackStack() },
