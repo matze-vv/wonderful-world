@@ -21,8 +21,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Inventory2
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -58,7 +56,6 @@ import androidx.lifecycle.viewModelScope
 import coil.compose.AsyncImage
 import de.wonderfulworld.app.WonderfulWorldApp
 import de.wonderfulworld.app.data.Mission
-import de.wonderfulworld.app.data.Ritual
 import de.wonderfulworld.app.domain.Dates
 import de.wonderfulworld.app.domain.DEFAULT_IMPULSE_MINUTES
 import de.wonderfulworld.app.domain.dmDe
@@ -66,7 +63,6 @@ import de.wonderfulworld.app.domain.formatMinutes
 import de.wonderfulworld.app.domain.monthNameDe
 import de.wonderfulworld.app.ui.appViewModel
 import de.wonderfulworld.app.ui.components.DayChips
-import de.wonderfulworld.app.ui.components.MissionDialog
 import de.wonderfulworld.app.ui.components.Muted
 import de.wonderfulworld.app.ui.components.PaperCard
 import de.wonderfulworld.app.ui.components.SectionTitle
@@ -90,7 +86,9 @@ class PlanningViewModel(val app: WonderfulWorldApp) : ViewModel() {
         if (loaded) return
         viewModelScope.launch {
             val cal = repo.calendarNow()
-            repo.activeRituals().forEach { masks[it.id] = cal.mask(it.id, week) }
+            // Schon geplant: diesen Plan zeigen. Sonst: Standard-Tage der aktiven Rituale.
+            val planned = cal.isWeekPlanned(week)
+            repo.activeRituals().forEach { masks[it.id] = if (planned) cal.mask(it.id, week) else it.defaultMask }
             impulseMinutes = cal.effectivePlan(week)?.impulseMinutes ?: DEFAULT_IMPULSE_MINUTES
             loaded = true
         }
@@ -101,11 +99,6 @@ class PlanningViewModel(val app: WonderfulWorldApp) : ViewModel() {
     fun addRitual(name: String, today: LocalDate) = launch {
         val r = repo.addRitual(name, today)
         masks[r.id] = ALL_DAYS
-    }
-
-    fun archiveRitual(r: Ritual, today: LocalDate) = launch {
-        repo.archiveRitual(r, today)
-        masks.remove(r.id)
     }
 
     fun save(week: LocalDate, planMonth: Boolean, onDone: () -> Unit) = launch {
@@ -119,7 +112,7 @@ class PlanningViewModel(val app: WonderfulWorldApp) : ViewModel() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlanningScreen(onDone: () -> Unit) {
+fun PlanningScreen(onDone: () -> Unit, onEditMission: (Long) -> Unit, onNewMission: () -> Unit) {
     val vm = appViewModel { PlanningViewModel(it) }
     val today = rememberToday()
     val week = Dates.weekStart(today)
@@ -131,17 +124,16 @@ fun PlanningScreen(onDone: () -> Unit) {
     val missions by vm.repo.missions.collectAsStateWithLifecycle(emptyList())
     val monthPlans by vm.repo.monthPlans.collectAsStateWithLifecycle(null)
     val journal by vm.repo.journal.collectAsStateWithLifecycle(emptyList())
+    val tags by vm.repo.tags.collectAsStateWithLifecycle(emptyList())
+    val tagById = tags.associateBy { it.id }
 
     val month = Dates.missionMonth(week)
     val prevMonth = month.minusMonths(1)
     val mp = monthPlans
     val planMonth = mp != null && mp.none { it.month == month } && (Dates.isMonthPlanningWeek(week) || mp.isEmpty())
-    val activeRituals = rituals.filter { it.archivedOn == null }
+    val activeRituals = rituals.filter { it.isActive }
 
-    var newMission by remember { mutableStateOf(false) }
-    var editMission by remember { mutableStateOf<Mission?>(null) }
     var newRitual by remember { mutableStateOf("") }
-    var archiveCandidate by remember { mutableStateOf<Ritual?>(null) }
     var pickImpulse by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -238,14 +230,14 @@ fun PlanningScreen(onDone: () -> Unit) {
             }
             item {
                 SectionTitle(if (planMonth) "Missionen für den ${month.monthNameDe()}" else "Missionen ergänzen") {
-                    IconButton(onClick = { newMission = true }) { Icon(Icons.Outlined.Add, "Mission hinzufügen") }
+                    IconButton(onClick = onNewMission) { Icon(Icons.Outlined.Add, "Mission hinzufügen") }
                 }
             }
             item {
                 PaperCard {
                     val ms = missions.filter { it.month == month && it.resolution == null }
                     if (ms.isEmpty()) Muted("Kleine Ziele für diesen Monat – z. B. „2× wandern“ oder „Buch fertig lesen“.")
-                    ms.forEach { m -> MissionRow(m, onEdit = { editMission = m }, onUpdate = { vm.launch { vm.repo.updateMission(it) } }) }
+                    ms.forEach { m -> MissionRow(m, m.tagId?.let(tagById::get), onClick = { onEditMission(m.id) }) }
                 }
             }
 
@@ -254,13 +246,12 @@ fun PlanningScreen(onDone: () -> Unit) {
             item {
                 PaperCard {
                     if (activeRituals.isEmpty()) Muted("Noch keine Rituale. Leg unten dein erstes an.")
+                    else Muted("Vorbelegt mit den Standard-Tagen. Pausieren und Details bearbeiten kannst du unter „Mehr“.")
                     activeRituals.forEach { r ->
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(r.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                                IconButton(onClick = { archiveCandidate = r }) {
-                                    Icon(Icons.Outlined.Inventory2, "Ritual archivieren", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
+                            Column(Modifier.padding(top = 4.dp)) {
+                                Text(r.name, style = MaterialTheme.typography.bodyLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                                if (r.detail.isNotBlank()) Muted(r.detail.lineSequence().first().take(80))
                             }
                             DayChips(vm.masks[r.id] ?: 0) { vm.masks[r.id] = it }
                         }
@@ -309,31 +300,6 @@ fun PlanningScreen(onDone: () -> Unit) {
         }
     }
 
-    if (newMission) {
-        MissionDialog(null, onDismiss = { newMission = false }, onSave = { t, c, n ->
-            vm.launch { vm.repo.addMission(month, t, c, n) }; newMission = false
-        })
-    }
-    editMission?.let { m ->
-        MissionDialog(m, onDismiss = { editMission = null },
-            onSave = { t, c, n ->
-                vm.launch {
-                    vm.repo.updateMission(m.copy(title = t.trim(), counter = c, target = if (c) n else 1,
-                        progress = if (c) m.progress else minOf(m.progress, 1)))
-                }
-                editMission = null
-            },
-            onDelete = { vm.launch { vm.repo.deleteMission(m) }; editMission = null })
-    }
-    archiveCandidate?.let { r ->
-        AlertDialog(
-            onDismissRequest = { archiveCandidate = null },
-            title = { Text("„${r.name}“ archivieren?") },
-            text = { Text("Das Ritual wird ab heute nicht mehr geplant. Vergangene Häkchen bleiben im Archiv erhalten.") },
-            confirmButton = { TextButton(onClick = { vm.archiveRitual(r, today); archiveCandidate = null }) { Text("Archivieren") } },
-            dismissButton = { TextButton(onClick = { archiveCandidate = null }) { Text("Abbrechen") } },
-        )
-    }
     if (pickImpulse) {
         TimePickerDialog(vm.impulseMinutes, "Morgen-Impuls", onDismiss = { pickImpulse = false }) {
             vm.impulseMinutes = it; pickImpulse = false

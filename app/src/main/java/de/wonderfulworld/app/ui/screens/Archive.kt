@@ -88,6 +88,8 @@ fun ArchiveScreen(onOpenEntry: (Long) -> Unit) {
     val rituals by vm.repo.rituals.collectAsStateWithLifecycle(emptyList())
     val missions by vm.repo.missions.collectAsStateWithLifecycle(emptyList())
     val journal by vm.repo.journal.collectAsStateWithLifecycle(emptyList())
+    val tags by vm.repo.tags.collectAsStateWithLifecycle(emptyList())
+    val tagById = tags.associateBy { it.id }
     val c = cal ?: return
 
     Column(Modifier.fillMaxSize()) {
@@ -145,13 +147,13 @@ fun ArchiveScreen(onOpenEntry: (Long) -> Unit) {
                     }
                 }
                 item { SectionTitle("Missionen · ${month.monthNameDe()}") }
-                item { MissionList(missions.filter { it.month == month }) }
+                item { MissionList(missions.filter { it.month == month }, tagById) }
                 item { SectionTitle("Tagebuch") }
                 if (entries.isEmpty()) item { PaperCard { Muted("Keine Einträge in dieser Woche.") } }
                 items(entries.sortedBy { it.timestamp }, key = { it.id }) { e ->
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(e.dateTime().toLocalDate().fullDe(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                        JournalCard(e, vm.app, onClick = { onOpenEntry(e.id) })
+                        JournalTile(e, vm.app, today, onClick = { onOpenEntry(e.id) })
                     }
                 }
             }
@@ -172,7 +174,7 @@ fun ArchiveScreen(onOpenEntry: (Long) -> Unit) {
                 }
                 SectionTitle("Missionen")
                 Muted("Missionsmonat ${from.dmDe()} – ${to.dmDe()}")
-                MissionList(missions.filter { it.month == ym })
+                MissionList(missions.filter { it.month == ym }, tagById)
             }
         }
     }
@@ -233,10 +235,10 @@ private fun CheckDot(due: Boolean, checked: Boolean, future: Boolean) {
 }
 
 @Composable
-private fun MissionList(ms: List<Mission>) {
+private fun MissionList(ms: List<Mission>, tags: Map<Long, de.wonderfulworld.app.data.Tag>) {
     PaperCard {
         if (ms.isEmpty()) Muted("Keine Missionen.")
-        ms.forEach { m -> MissionRow(m, onEdit = {}, onUpdate = {}, readOnly = true) }
+        ms.forEach { m -> MissionRow(m, m.tagId?.let(tags::get), onClick = null) }
     }
 }
 

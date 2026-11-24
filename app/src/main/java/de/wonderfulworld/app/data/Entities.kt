@@ -2,6 +2,7 @@
 
 package de.wonderfulworld.app.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
@@ -18,7 +19,14 @@ data class Ritual(
     val createdOn: LocalDate,
     val archivedOn: LocalDate? = null,
     val sortOrder: Int = 0,
-)
+    @ColumnInfo(defaultValue = "''") val detail: String = "",
+    /** Standard-Wochentage für die Sonntagsplanung (Bit 0 = So … Bit 6 = Sa). */
+    @ColumnInfo(defaultValue = "127") val defaultMask: Int = 0b1111111,
+    /** Pausiert ab diesem Tag (bleibt gespeichert, wird aber nicht mehr geplant). */
+    val pausedOn: LocalDate? = null,
+) {
+    val isActive: Boolean get() = archivedOn == null && pausedOn == null
+}
 
 /** Ergebnis einer Sonntagsplanung für die Woche ab [weekStart] (immer ein Sonntag). */
 @Serializable
@@ -60,6 +68,9 @@ data class Mission(
     /** null = aktiv, sonst [RESOLUTION_CARRIED] oder [RESOLUTION_ARCHIVED]. */
     val resolution: String? = null,
     val createdAt: Long,
+    @ColumnInfo(defaultValue = "''") val detail: String = "",
+    /** Tag der Mission oder null (= „Allgemein“). */
+    val tagId: Long? = null,
 ) {
     val isDone: Boolean get() = progress >= target
     val isOpen: Boolean get() = !isDone && resolution == null
@@ -69,6 +80,17 @@ data class Mission(
         const val RESOLUTION_ARCHIVED = "ARCHIVED"
     }
 }
+
+/** Tag für Missionen; jeder Tag bekommt im Dashboard eine eigene Kachel. */
+@Serializable
+@Entity(tableName = "tags")
+data class Tag(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    /** ARGB-Farbe. */
+    val color: Int,
+    val sortOrder: Int = 0,
+)
 
 /** Markiert, dass die Monatsplanung (Missionen) für [month] erledigt ist. */
 @Serializable

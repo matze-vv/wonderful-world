@@ -35,6 +35,7 @@ interface RitualDao {
 @Dao
 interface MissionDao {
     @Query("SELECT * FROM missions ORDER BY month, createdAt") fun observeAll(): Flow<List<Mission>>
+    @Query("SELECT * FROM missions WHERE id = :id") suspend fun byId(id: Long): Mission?
     @Query("SELECT * FROM missions WHERE month = :month ORDER BY createdAt") suspend fun forMonth(month: YearMonth): List<Mission>
     @Insert suspend fun insert(m: Mission): Long
     @Update suspend fun update(m: Mission)
@@ -61,6 +62,16 @@ interface AlarmDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertDefaults(a: List<AlarmSetting>)
 }
 
+@Dao
+interface TagDao {
+    @Query("SELECT * FROM tags ORDER BY sortOrder, id") fun observeAll(): Flow<List<Tag>>
+    @Query("SELECT * FROM tags ORDER BY sortOrder, id") suspend fun all(): List<Tag>
+    @Insert suspend fun insert(t: Tag): Long
+    @Update suspend fun update(t: Tag)
+    @Query("DELETE FROM tags WHERE id = :id") suspend fun delete(id: Long)
+    @Query("UPDATE missions SET tagId = NULL WHERE tagId = :id") suspend fun untagMissions(id: Long)
+}
+
 /** Nur für Backup/Import. */
 @Dao
 interface BackupDao {
@@ -72,6 +83,7 @@ interface BackupDao {
     @Query("SELECT * FROM month_plans") suspend fun monthPlans(): List<MonthPlan>
     @Query("SELECT * FROM journal_entries") suspend fun journal(): List<JournalEntry>
     @Query("SELECT * FROM alarms") suspend fun alarms(): List<AlarmSetting>
+    @Query("SELECT * FROM tags") suspend fun tags(): List<Tag>
 
     @Insert suspend fun insertRituals(v: List<Ritual>)
     @Insert suspend fun insertPlans(v: List<WeekPlan>)
@@ -81,4 +93,5 @@ interface BackupDao {
     @Insert suspend fun insertMonthPlans(v: List<MonthPlan>)
     @Insert suspend fun insertJournal(v: List<JournalEntry>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertAlarms(v: List<AlarmSetting>)
+    @Insert suspend fun insertTags(v: List<Tag>)
 }

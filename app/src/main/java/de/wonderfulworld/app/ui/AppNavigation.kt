@@ -4,9 +4,9 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Alarm
-import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -33,15 +33,22 @@ import de.wonderfulworld.app.ui.screens.DashboardScreen
 import de.wonderfulworld.app.ui.screens.EntryScreen
 import de.wonderfulworld.app.ui.screens.PlanningScreen
 import de.wonderfulworld.app.ui.screens.SettingsScreen
+import de.wonderfulworld.app.ui.screens.JournalViewScreen
+import de.wonderfulworld.app.ui.screens.ManageScreen
+import de.wonderfulworld.app.ui.screens.MissionEditScreen
+import de.wonderfulworld.app.ui.screens.RitualsTodayScreen
+import de.wonderfulworld.app.ui.screens.TagMissionsScreen
+import de.wonderfulworld.app.ui.components.BackTopBar
+import androidx.compose.foundation.layout.Column
 import kotlinx.coroutines.flow.MutableStateFlow
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
 private val tabs = listOf(
-    Tab("dashboard", "Heute", Icons.Outlined.AutoStories),
+    Tab("dashboard", "Woche", Icons.Outlined.GridView),
     Tab("archive", "Archiv", Icons.Outlined.CalendarMonth),
     Tab("alarms", "Wecker", Icons.Outlined.Alarm),
-    Tab("settings", "Einstellungen", Icons.Outlined.Settings),
+    Tab("more", "Mehr", Icons.Outlined.MoreHoriz),
 )
 
 @Composable
@@ -83,18 +90,62 @@ fun AppNavigation(pendingDest: MutableStateFlow<String?>) {
                 DashboardScreen(
                     onPlan = { nav.navigate("planning") },
                     onNewEntry = { nav.navigate("entry?id=0") },
-                    onOpenEntry = { nav.navigate("entry?id=$it") },
+                    onOpenEntry = { nav.navigate("journal/$it") },
+                    onOpenRituals = { nav.navigate("rituals") },
+                    onOpenTag = { nav.navigate("tag/$it") },
+                    onNewMission = { nav.navigate("mission?id=0&tag=0") },
                 )
             }
-            composable("archive") { ArchiveScreen(onOpenEntry = { nav.navigate("entry?id=$it") }) }
+            composable("archive") { ArchiveScreen(onOpenEntry = { nav.navigate("journal/$it") }) }
             composable("alarms") { AlarmsScreen() }
-            composable("settings") { SettingsScreen() }
-            composable("planning") { PlanningScreen(onDone = { nav.popBackStack() }) }
+            composable("more") { ManageScreen(onOpenSettings = { nav.navigate("settings") }) }
+            composable("settings") {
+                Column {
+                    BackTopBar("Einstellungen & Backup", onBack = { nav.popBackStack() })
+                    SettingsScreen()
+                }
+            }
+            composable("planning") {
+                PlanningScreen(
+                    onDone = { nav.popBackStack() },
+                    onEditMission = { nav.navigate("mission?id=$it&tag=0") },
+                    onNewMission = { nav.navigate("mission?id=0&tag=0") },
+                )
+            }
+            composable("rituals") { RitualsTodayScreen(onBack = { nav.popBackStack() }) }
+            composable("tag/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { back ->
+                TagMissionsScreen(
+                    tagId = back.arguments?.getLong("id") ?: 0L,
+                    onBack = { nav.popBackStack() },
+                    onEditMission = { nav.navigate("mission?id=$it&tag=0") },
+                    onNewMission = { nav.navigate("mission?id=0&tag=$it") },
+                )
+            }
+            composable("journal/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { back ->
+                JournalViewScreen(
+                    id = back.arguments?.getLong("id") ?: 0L,
+                    onBack = { nav.popBackStack() },
+                    onEdit = { nav.navigate("entry?id=$it") },
+                )
+            }
             composable(
                 "entry?id={id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType; defaultValue = 0L }),
             ) { back ->
                 EntryScreen(id = back.arguments?.getLong("id") ?: 0L, onDone = { nav.popBackStack() })
+            }
+            composable(
+                "mission?id={id}&tag={tag}",
+                arguments = listOf(
+                    navArgument("id") { type = NavType.LongType; defaultValue = 0L },
+                    navArgument("tag") { type = NavType.LongType; defaultValue = 0L },
+                ),
+            ) { back ->
+                MissionEditScreen(
+                    id = back.arguments?.getLong("id") ?: 0L,
+                    presetTag = back.arguments?.getLong("tag") ?: 0L,
+                    onDone = { nav.popBackStack() },
+                )
             }
         }
     }

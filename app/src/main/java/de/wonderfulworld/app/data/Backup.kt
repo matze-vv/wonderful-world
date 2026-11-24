@@ -12,7 +12,7 @@ import java.util.zip.ZipOutputStream
 
 @Serializable
 data class BackupData(
-    val version: Int = 1,
+    val version: Int = 2,
     val exportedAt: Long,
     val rituals: List<Ritual>,
     val weekPlans: List<WeekPlan>,
@@ -23,6 +23,7 @@ data class BackupData(
     val journal: List<JournalEntry>,
     val alarms: List<AlarmSetting>,
     val settings: AppSettings,
+    val tags: List<Tag> = emptyList(),
 )
 
 /** Backup als ZIP: data.json + photos/… */
@@ -41,6 +42,7 @@ class BackupManager(
             rituals = dao.rituals(), weekPlans = dao.plans(), schedules = dao.schedules(),
             checks = dao.checks(), missions = dao.missions(), monthPlans = dao.monthPlans(),
             journal = dao.journal(), alarms = dao.alarms(), settings = settings.settings.value,
+            tags = dao.tags(),
         )
         val out = context.contentResolver.openOutputStream(target, "w") ?: error("Datei kann nicht geschrieben werden")
         ZipOutputStream(out.buffered()).use { zip ->
@@ -84,6 +86,7 @@ class BackupManager(
         val dao = db.backupDao()
         db.withTransaction {
             db.clearAllTables()
+            dao.insertTags(d.tags)
             dao.insertRituals(d.rituals)
             dao.insertPlans(d.weekPlans)
             dao.insertSchedules(d.schedules)

@@ -7,6 +7,14 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontVariation
+import de.wonderfulworld.app.R
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -29,9 +37,9 @@ private val Light = lightColorScheme(
     onTertiary = Color(0xFFFFFBF6),
     tertiaryContainer = Color(0xFFF5E5BE),
     onTertiaryContainer = Color(0xFF3A2A00),
-    background = Color(0xFFF6F1E7),
+    background = Color(0xFFF8F4EE),
     onBackground = Color(0xFF2F2A24),
-    surface = Color(0xFFF6F1E7),
+    surface = Color(0xFFF8F4EE),
     onSurface = Color(0xFF2F2A24),
     surfaceVariant = Color(0xFFEAE2D3),
     onSurfaceVariant = Color(0xFF6A6155),
@@ -72,17 +80,71 @@ private val Dark = darkColorScheme(
     outlineVariant = Color(0xFF4A433A),
 )
 
-private val Serif = FontFamily.Serif
+@OptIn(ExperimentalTextApi::class)
+private fun figtree(weight: FontWeight) = Font(
+    R.font.figtree, weight = weight,
+    variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight)),
+)
+
+/** Figtree – serifenlos, freundlich. Variable Schrift, alle Stärken aus einer Datei. */
+val Figtree = FontFamily(
+    figtree(FontWeight.Normal), figtree(FontWeight.Medium), figtree(FontWeight.SemiBold),
+    figtree(FontWeight.Bold), figtree(FontWeight.ExtraBold),
+)
 
 private val AppTypography = Typography().run {
+    fun TextStyle.f(w: FontWeight? = null) = copy(fontFamily = Figtree, fontWeight = w ?: fontWeight)
     copy(
-        displaySmall = displaySmall.copy(fontFamily = Serif),
-        headlineLarge = headlineLarge.copy(fontFamily = Serif),
-        headlineMedium = headlineMedium.copy(fontFamily = Serif),
-        headlineSmall = headlineSmall.copy(fontFamily = Serif),
-        titleLarge = titleLarge.copy(fontFamily = Serif),
-        titleMedium = TextStyle(fontFamily = Serif, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 24.sp),
+        displayLarge = displayLarge.f(FontWeight.ExtraBold),
+        displayMedium = displayMedium.f(FontWeight.ExtraBold),
+        displaySmall = displaySmall.f(FontWeight.ExtraBold),
+        headlineLarge = headlineLarge.f(FontWeight.ExtraBold),
+        headlineMedium = headlineMedium.copy(fontFamily = Figtree, fontWeight = FontWeight.ExtraBold, fontSize = 26.sp, lineHeight = 32.sp),
+        headlineSmall = headlineSmall.f(FontWeight.ExtraBold),
+        titleLarge = titleLarge.f(FontWeight.ExtraBold),
+        titleMedium = TextStyle(fontFamily = Figtree, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, lineHeight = 24.sp),
+        titleSmall = titleSmall.f(FontWeight.Bold),
+        bodyLarge = bodyLarge.f(FontWeight.Medium),
+        bodyMedium = bodyMedium.f(),
+        bodySmall = bodySmall.f(),
+        labelLarge = labelLarge.f(FontWeight.Bold),
+        labelMedium = labelMedium.f(FontWeight.Bold),
+        labelSmall = labelSmall.f(FontWeight.Bold),
     )
+}
+
+/** Farben der drei Bereiche: Rituale rötlich, Missionen gelblich, Tagebuch bläulich. */
+@Immutable
+data class AreaColors(
+    val container: Color,
+    val content: Color,
+    val muted: Color,
+    val accent: Color,
+    val track: Color,
+    val background: Color,
+)
+
+@Immutable
+data class WwColors(val ritual: AreaColors, val mission: AreaColors, val journal: AreaColors)
+
+private val LightAreas = WwColors(
+    ritual = AreaColors(Color(0xFFF4D3C8), Color(0xFF4A1C10), Color(0xFF7A4536), Color(0xFFC4472D), Color(0xFFEBB6A5), Color(0xFFFBF1ED)),
+    mission = AreaColors(Color(0xFFF8E7B0), Color(0xFF3D2C00), Color(0xFF7A6320), Color(0xFFC99A06), Color(0xFFEFD88A), Color(0xFFFDF6E1)),
+    journal = AreaColors(Color(0xFFD6E5F2), Color(0xFF1E3D5A), Color(0xFF4A6683), Color(0xFF3E6A93), Color(0xFFB8CFE4), Color(0xFFEEF4FA)),
+)
+
+private val DarkAreas = WwColors(
+    ritual = AreaColors(Color(0xFF4A2419), Color(0xFFF8DDD3), Color(0xFFD9A898), Color(0xFFF08A6E), Color(0xFF6B3626), Color(0xFF241713)),
+    mission = AreaColors(Color(0xFF453812), Color(0xFFF7E7B5), Color(0xFFD5C084), Color(0xFFE8BE3A), Color(0xFF5E4E1C), Color(0xFF221D0F)),
+    journal = AreaColors(Color(0xFF1F3549), Color(0xFFDCEAF6), Color(0xFFA6C0D8), Color(0xFF7FB0DD), Color(0xFF2E4B66), Color(0xFF141E28)),
+)
+
+val LocalWwColors = staticCompositionLocalOf { LightAreas }
+
+/** Zugriff: `Ww.colors.ritual.container` usw. */
+object Ww {
+    val colors: WwColors
+        @Composable @ReadOnlyComposable get() = LocalWwColors.current
 }
 
 private val AppShapes = Shapes(
@@ -93,10 +155,12 @@ private val AppShapes = Shapes(
 
 @Composable
 fun WonderfulWorldTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = if (dark) Dark else Light,
-        typography = AppTypography,
-        shapes = AppShapes,
-        content = content,
-    )
+    CompositionLocalProvider(LocalWwColors provides if (dark) DarkAreas else LightAreas) {
+        MaterialTheme(
+            colorScheme = if (dark) Dark else Light,
+            typography = AppTypography,
+            shapes = AppShapes,
+            content = content,
+        )
+    }
 }

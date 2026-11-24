@@ -41,6 +41,7 @@ class RitualCalendar(
         val r = ritualsById[ritualId] ?: return false
         if (date < r.createdOn) return false
         if (r.archivedOn != null && date >= r.archivedOn) return false
+        if (r.pausedOn != null && date >= r.pausedOn) return false
         return mask(ritualId, Dates.weekStart(date)) and Dates.bit(date) != 0
     }
 

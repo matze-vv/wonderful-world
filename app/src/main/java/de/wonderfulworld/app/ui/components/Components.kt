@@ -76,59 +76,6 @@ fun TimePickerDialog(initialMinutes: Int, title: String, onDismiss: () -> Unit, 
     )
 }
 
-/** Dialog zum Anlegen/Bearbeiten einer Mission (einfach oder mit Zähler). */
-@Composable
-fun MissionDialog(
-    initial: Mission?,
-    onDismiss: () -> Unit,
-    onSave: (title: String, counter: Boolean, target: Int) -> Unit,
-    onDelete: (() -> Unit)? = null,
-) {
-    var title by remember { mutableStateOf(initial?.title ?: "") }
-    var counter by remember { mutableStateOf(initial?.counter ?: false) }
-    var target by remember { mutableStateOf((initial?.target ?: 4).toString()) }
-    val targetInt = target.toIntOrNull()
-    val valid = title.isNotBlank() && (!counter || (targetInt != null && targetInt in 1..999))
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Neue Mission" else "Mission bearbeiten") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = title, onValueChange = { title = it },
-                    label = { Text("Was möchtest du schaffen?") },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Mit Zähler")
-                        Muted(if (counter) "z. B. 2/4" else "einfach erledigt/offen")
-                    }
-                    Switch(checked = counter, onCheckedChange = { counter = it })
-                }
-                if (counter) {
-                    OutlinedTextField(
-                        value = target, onValueChange = { target = it.filter(Char::isDigit).take(3) },
-                        label = { Text("Ziel (Anzahl)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(enabled = valid, onClick = { onSave(title, counter, targetInt ?: 1) }) { Text("Speichern") }
-        },
-        dismissButton = {
-            Row {
-                if (onDelete != null) TextButton(onClick = onDelete) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
-                TextButton(onClick = onDismiss) { Text("Abbrechen") }
-            }
-        },
-    )
-}
-
 /** Sieben Tages-Chips (So … Sa) zum Auswählen der fälligen Wochentage. */
 @Composable
 fun DayChips(mask: Int, onChange: (Int) -> Unit) {

@@ -14,6 +14,7 @@ class Repository(val db: AppDatabase, val photos: PhotoStore) {
     private val missionDao = db.missionDao()
     private val journalDao = db.journalDao()
     private val alarmDao = db.alarmDao()
+    private val tagDao = db.tagDao()
 
     // ---------- Rituale ----------
 
@@ -28,20 +29,23 @@ class Repository(val db: AppDatabase, val photos: PhotoStore) {
         ritualDao.plans(), ritualDao.schedules(), ritualDao.rituals(), db.backupDao().checks(),
     )
 
-    suspend fun activeRituals(): List<Ritual> = ritualDao.rituals().filter { it.archivedOn == null }
+    suspend fun activeRituals(): List<Ritual> = ritualDao.rituals().filter { it.isActive }
 
     suspend fun setChecked(ritualId: Long, date: LocalDate, checked: Boolean) {
         if (checked) ritualDao.insertCheck(RitualCheck(ritualId, date, System.currentTimeMillis()))
         else ritualDao.deleteCheck(ritualId, date)
     }
 
-    suspend fun addRitual(name: String, today: LocalDate): Ritual {
+    suspend fun addRitual(name: String, today: LocalDate, detail: String = "", defaultMask: Int = 0b1111111): Ritual {
         val order = (ritualDao.rituals().maxOfOrNull { it.sortOrder } ?: 0) + 1
-        val r = Ritual(name = name.trim(), createdOn = today, sortOrder = order)
+        val r = Ritual(name = name.trim(), createdOn = today, sortOrder = order, detail = detail.trim(), defaultMask = defaultMask)
         return r.copy(id = ritualDao.insertRitual(r))
     }
 
-    suspend fun renameRitual(r: Ritual, name: String) = ritualDao.updateRitual(r.copy(name = name.trim()))
+    suspend fun updateRitual(r: Ritual) = ritualDao.updateRitual(r.copy(name = r.name.trim(), detail = r.detail.trim()))
+
+    suspend fun setPaused(r: Ritual, paused: Boolean, today: LocalDate) =
+        ritualDao.updateRitual(r.copy(pausedOn = if (paused) today else null))
 
     suspend fun archiveRitual(r: Ritual, today: LocalDate) = ritualDao.updateRitual(r.copy(archivedOn = today))
 
@@ -61,14 +65,34 @@ class Repository(val db: AppDatabase, val photos: PhotoStore) {
 
     suspend fun missionsFor(month: YearMonth) = missionDao.forMonth(month)
 
-    suspend fun addMission(month: YearMonth, title: String, counter: Boolean, target: Int) {
+    suspend fun mission(id: Long) = missionDao.byId(id)
+
+    suspend fun addMission(month: YearMonth, title: String, counter: Boolean, target: Int, detail: String = "", tagId: Long? = null) {
         missionDao.insert(
             Mission(
                 month = month, title = title.trim(), counter = counter,
                 target = if (counter) target.coerceAtLeast(1) else 1,
                 createdAt = System.currentTimeMillis(),
+                detail = detail.trim(), tagId = tagId,
             )
         )
+    }
+
+    // ---------- Tags ----------
+
+    val tags: Flow<List<Tag>> = tagDao.observeAll()
+
+    suspend fun addTag(name: String, color: Int): Tag {
+        val order = (tagDao.all().maxOfOrNull { it.sortOrder } ?: 0) + 1
+        val t = Tag(name = name.trim(), color = color, sortOrder = order)
+        return t.copy(id = tagDao.insert(t))
+    }
+
+    suspend fun updateTag(t: Tag) = tagDao.update(t.copy(name = t.name.trim()))
+
+    suspend fun deleteTag(t: Tag) = db.withTransaction {
+        tagDao.untagMissions(t.id)
+        tagDao.delete(t.id)
     }
 
     suspend fun updateMission(m: Mission) = missionDao.update(m.copy(progress = m.progress.coerceIn(0, m.target)))

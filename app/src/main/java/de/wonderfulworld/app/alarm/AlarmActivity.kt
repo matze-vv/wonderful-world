@@ -29,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -115,7 +114,7 @@ private fun AlarmContent(snoozesLeft: Int, onSnooze: () -> Unit, onDismiss: () -
             Text("Guten Morgen", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
             Text(
                 now.format(DateTimeFormatter.ofPattern("HH:mm")),
-                fontSize = 88.sp, fontFamily = FontFamily.Serif,
+                fontSize = 88.sp, fontFamily = de.wonderfulworld.app.ui.theme.Figtree, fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Text(LocalDate.now().fullDe(), color = MaterialTheme.colorScheme.onSurfaceVariant)
