@@ -1,6 +1,18 @@
 package de.wonderfulworld.app.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import de.wonderfulworld.app.data.TileLayout
+import de.wonderfulworld.app.data.TileSize
+import de.wonderfulworld.app.ui.components.Masonry
+import de.wonderfulworld.app.ui.components.TileBox
+import de.wonderfulworld.app.ui.components.TileSizeSheet
+import de.wonderfulworld.app.ui.components.height
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -95,19 +107,26 @@ class DashboardViewModel(val app: WonderfulWorldApp) : ViewModel() {
     }
 }
 
-/** Eine Missions-Kachel: ein Tag (oder „Allgemein“) mit seinen Missionen. */
-data class TagGroup(val tag: Tag?, val missions: List<Mission>) {
-    val id: Long get() = tag?.id ?: 0L
-    val name: String get() = tag?.name ?: "Allgemein"
-}
+/** Eine Missions-Kachel: ein Tag mit seinen Missionen. */
+data class TagGroup(val tag: Tag, val missions: List<Mission>)
 
-fun groupByTag(missions: List<Mission>, tags: List<Tag>): List<TagGroup> {
+/** Missionen je Tag (nur Tags mit Missionen) und die Missionen ohne Tag. */
+fun groupByTag(missions: List<Mission>, tags: List<Tag>): Pair<List<TagGroup>, List<Mission>> {
     val byTag = missions.groupBy { it.tagId }
     val known = tags.map { it.id }.toSet()
     val groups = tags.mapNotNull { t -> byTag[t.id]?.let { TagGroup(t, it) } }
     val untagged = missions.filter { it.tagId == null || it.tagId !in known }
-    return if (untagged.isEmpty()) groups else groups + TagGroup(null, untagged)
+    return groups to untagged
 }
+
+/** Eine Kachel im Dashboard: Schlüssel für die gespeicherte Größe, Standardbreite und Inhalt. */
+private class TileSpec(
+    val key: String,
+    val label: String,
+    val defaultWide: Boolean,
+    val resizable: Boolean = true,
+    val content: @Composable (size: TileSize, onMenu: () -> Unit) -> Unit,
+)
 
 @Composable
 fun DashboardScreen(
@@ -116,6 +135,7 @@ fun DashboardScreen(
     onOpenEntry: (Long) -> Unit,
     onOpenRituals: () -> Unit,
     onOpenTag: (Long) -> Unit,
+    onOpenMission: (Long) -> Unit,
     onNewMission: () -> Unit,
 ) {
     val vm = appViewModel { DashboardViewModel(it) }
@@ -129,7 +149,9 @@ fun DashboardScreen(
     val week = Dates.weekStart(today)
     val month = Dates.missionMonth(today)
     val monthMissions = missions.filter { it.month == month && it.resolution == null }
-    val groups = groupByTag(monthMissions, tags)
+    val (groups, untagged) = groupByTag(monthMissions, tags)
+    val settings by vm.app.settings.settings.collectAsStateWithLifecycle()
+    var menuFor by remember { mutableStateOf<TileSpec?>(null) }
     val weekEntries = journal.filter { it.dateTime().toLocalDate().let { d -> d >= week && d <= week.plusDays(6) } }
 
     val c = cal
@@ -183,67 +205,75 @@ fun DashboardScreen(
                 )
             }
 
-            // ---- Rituale ----
+            // ---- Alle Kacheln im Mauerwerk-Layout ----
             item {
-                val due = c?.dueRituals(today).orEmpty()
-                val done = due.count { c!!.isChecked(it.id, today) }
-                RitualsTile(
-                    total = due.size, done = done, onOpen = onOpenRituals,
-                    hasPlan = c?.effectivePlan(week) != null,
-                ) {
-                    due.forEach { r ->
-                        val checked = c!!.isChecked(r.id, today)
-                        RitualLine(
-                            name = r.name, detail = r.detail, checked = checked, streak = c.streak(r.id, today),
-                            onToggle = { vm.launch { vm.repo.setChecked(r.id, today, it) } },
-                            onOpen = onOpenRituals,
-                        )
-                    }
-                }
-            }
-
-            // ---- Missionen: eine Kachel pro Tag ----
-            val missionTiles: List<TagGroup?> = groups + listOf(null) // null = „+ Mission“
-            missionTiles.chunked(2).forEach { pair ->
-                item {
-                    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        pair.forEach { g ->
-                            val mod = Modifier.weight(1f).fillMaxHeight()
-                            if (g == null) AddMissionTile(onNewMission, mod)
-                            else MissionTile(g, onOpen = { onOpenTag(g.id) }, onQuick = vm::quick, modifier = mod)
-                        }
-                        if (pair.size == 1) Spacer(Modifier.weight(1f))
-                    }
-                }
-            }
-
-            // ---- Tagebuch: eine Kachel pro Eintrag ----
-            if (weekEntries.isEmpty()) item {
-                Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
-                        .border(BorderStroke(2.dp, Ww.colors.journal.track), RoundedCornerShape(22.dp))
-                        .clickable(onClick = onNewEntry).padding(20.dp),
-                ) {
-                    Text(
-                        "Noch keine Einträge diese Woche. Was hat dich heute bewegt?",
-                        color = Ww.colors.journal.muted, style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-            } else {
-                val first = weekEntries.first()
-                item(key = "e${first.id}") { JournalTile(first, vm.app, today, onClick = { onOpenEntry(first.id) }, height = 220.dp) }
-                weekEntries.drop(1).chunked(2).forEach { pair ->
-                    item(key = "e${pair.first().id}") {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            pair.forEach { e ->
-                                JournalTile(e, vm.app, today, onClick = { onOpenEntry(e.id) }, modifier = Modifier.weight(1f))
+                val specs = buildList {
+                    add(TileSpec("rituals", "Rituale heute", defaultWide = true) { size, onMenu ->
+                        val due = c?.dueRituals(today).orEmpty()
+                        val done = due.count { c!!.isChecked(it.id, today) }
+                        RitualsTile(due.size, done, c?.effectivePlan(week) != null, size, onOpenRituals, onMenu) {
+                            due.forEach { r ->
+                                val checked = c!!.isChecked(r.id, today)
+                                RitualLine(
+                                    name = r.name, detail = r.detail, checked = checked, streak = c.streak(r.id, today),
+                                    onToggle = { vm.launch { vm.repo.setChecked(r.id, today, it) } },
+                                    onOpen = onOpenRituals, onMenu = onMenu,
+                                )
                             }
-                            if (pair.size == 1) Spacer(Modifier.weight(1f))
                         }
+                    })
+                    groups.forEach { g ->
+                        add(TileSpec("tag:${g.tag.id}", "Tag „${g.tag.name}“", defaultWide = false) { size, onMenu ->
+                            MissionTile(g, size, onOpen = { onOpenTag(g.tag.id) }, onQuick = vm::quick, onMenu = onMenu)
+                        })
+                    }
+                    untagged.forEach { m ->
+                        add(TileSpec("mission:${m.id}", "Mission „${m.title}“", defaultWide = false) { size, onMenu ->
+                            SingleMissionTile(m, size, onOpen = { onOpenMission(m.id) }, onQuick = vm::quick, onMenu = onMenu)
+                        })
+                    }
+                    add(TileSpec("add", "", defaultWide = false, resizable = false) { _, _ -> AddMissionTile(onNewMission) })
+                    if (weekEntries.isEmpty()) {
+                        add(TileSpec("noentries", "", defaultWide = true, resizable = false) { _, _ ->
+                            Box(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                                    .border(BorderStroke(2.dp, Ww.colors.journal.track), RoundedCornerShape(22.dp))
+                                    .clickable(onClick = onNewEntry).padding(20.dp),
+                            ) {
+                                Text(
+                                    "Noch keine Einträge diese Woche. Was hat dich heute bewegt?",
+                                    color = Ww.colors.journal.muted, style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        })
+                    }
+                    weekEntries.forEachIndexed { i, e ->
+                        add(TileSpec("entry:${e.id}", "Tagebucheintrag", defaultWide = i == 0) { size, onMenu ->
+                            JournalTile(
+                                e, vm.app, today, onClick = { onOpenEntry(e.id) }, onLongClick = onMenu,
+                                height = size.height() ?: if (i == 0) 220.dp else 190.dp,
+                            )
+                        })
+                    }
+                }
+                fun layoutOf(t: TileSpec) = settings.tiles[t.key] ?: TileLayout(t.defaultWide)
+                Masonry(wide = specs.map { layoutOf(it).wide }) {
+                    specs.forEach { t ->
+                        key(t.key) { t.content(layoutOf(t).size) { if (t.resizable) menuFor = t } }
                     }
                 }
             }
         }
+    }
+
+    menuFor?.let { t ->
+        TileSizeSheet(
+            title = t.label,
+            layout = settings.tiles[t.key] ?: TileLayout(t.defaultWide),
+            onChange = { vm.app.settings.setTile(t.key, it) },
+            onReset = { vm.app.settings.setTile(t.key, null); menuFor = null },
+            onDismiss = { menuFor = null },
+        )
     }
 }
 
@@ -281,47 +311,57 @@ private fun PlanningBanner(needsMonth: Boolean, monthName: String, onPlan: () ->
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RitualsTile(total: Int, done: Int, hasPlan: Boolean, onOpen: () -> Unit, rows: @Composable () -> Unit) {
+private fun RitualsTile(
+    total: Int, done: Int, hasPlan: Boolean, size: TileSize,
+    onOpen: () -> Unit, onMenu: () -> Unit, rows: @Composable () -> Unit,
+) {
     val c = Ww.colors.ritual
     val left = total - done
-    Column(Modifier.fillMaxWidth().areaCard(c.container).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onOpen),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            ProgressRing(if (total == 0) 0f else done.toFloat() / total, c.accent, c.track) {
-                Text("$done/$total", style = MaterialTheme.typography.labelLarge, color = c.content, fontWeight = FontWeight.ExtraBold)
+    Box(Modifier.fillMaxWidth().areaCard(c.container).combinedClickable(onClick = onOpen, onLongClick = onMenu)) {
+        TileBox(size, autoMin = 120.dp, fade = c.container) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).combinedClickable(onClick = onOpen, onLongClick = onMenu),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    ProgressRing(if (total == 0) 0f else done.toFloat() / total, c.accent, c.track) {
+                        Text("$done/$total", style = MaterialTheme.typography.labelLarge, color = c.content, fontWeight = FontWeight.ExtraBold)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text("RITUALE HEUTE", style = MaterialTheme.typography.labelMedium, color = c.accent)
+                        Text(
+                            when {
+                                total == 0 -> if (hasPlan) "Heute frei" else "Noch nichts geplant"
+                                left == 0 -> "Alles geschafft!"
+                                left == 1 -> "Noch 1 Ritual"
+                                else -> "Noch $left Rituale"
+                            },
+                            style = MaterialTheme.typography.titleMedium, color = c.content,
+                        )
+                    }
+                    Icon(Icons.Rounded.ChevronRight, contentDescription = "Details", tint = c.accent)
+                }
+                rows()
             }
-            Column(Modifier.weight(1f)) {
-                Text("RITUALE HEUTE", style = MaterialTheme.typography.labelMedium, color = c.accent)
-                Text(
-                    when {
-                        total == 0 -> if (hasPlan) "Heute frei" else "Noch nichts geplant"
-                        left == 0 -> "Alles geschafft!"
-                        left == 1 -> "Noch 1 Ritual"
-                        else -> "Noch $left Rituale"
-                    },
-                    style = MaterialTheme.typography.titleMedium, color = c.content,
-                )
-            }
-            Icon(Icons.Rounded.ChevronRight, contentDescription = "Details", tint = c.accent)
         }
-        rows()
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RitualLine(
     name: String, detail: String, checked: Boolean, streak: Int,
-    onToggle: (Boolean) -> Unit, onOpen: () -> Unit,
+    onToggle: (Boolean) -> Unit, onOpen: () -> Unit, onMenu: () -> Unit,
 ) {
     val c = Ww.colors.ritual
     Row(verticalAlignment = Alignment.CenterVertically) {
         CheckCircle(checked, c.accent, if (checked) "$name nicht erledigt" else "$name abhaken", onToggle, Modifier.offset(x = (-12).dp))
         Column(
-            Modifier.weight(1f).offset(x = (-8).dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onOpen).padding(vertical = 4.dp),
+            Modifier.weight(1f).offset(x = (-8).dp).clip(RoundedCornerShape(8.dp))
+                .combinedClickable(onClick = onOpen, onLongClick = onMenu).padding(vertical = 4.dp),
         ) {
             Text(
                 name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = c.content,
@@ -333,38 +373,61 @@ private fun RitualLine(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MissionTile(g: TagGroup, onOpen: () -> Unit, onQuick: (Mission) -> Unit, modifier: Modifier) {
+private fun MissionTile(g: TagGroup, size: TileSize, onOpen: () -> Unit, onQuick: (Mission) -> Unit, onMenu: () -> Unit) {
     val c = Ww.colors.mission
     val color = tagColor(g.tag)
-    Column(
-        modifier.heightIn(min = 170.dp).areaCard(c.container, border = color).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 32.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onOpen),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TagChip(g.name, color, Modifier.weight(1f, fill = false))
-            Spacer(Modifier.weight(1f))
-            Text("${g.missions.count { it.isDone }}/${g.missions.size}", style = MaterialTheme.typography.labelLarge, color = c.muted)
-        }
-        g.missions.forEach { m ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Column(
-                    Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(onClick = onOpen),
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
+    Box(Modifier.fillMaxWidth().areaCard(c.container, border = color).combinedClickable(onClick = onOpen, onLongClick = onMenu)) {
+        TileBox(size, autoMin = 120.dp, fade = c.container) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 32.dp).clip(RoundedCornerShape(10.dp))
+                        .combinedClickable(onClick = onOpen, onLongClick = onMenu),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        m.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = c.content,
-                        textDecoration = if (m.isDone) TextDecoration.LineThrough else null, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    )
-                    if (m.detail.isNotBlank()) Text(m.detail, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = c.muted)
-                    ProgressLine(m.progress.toFloat() / m.target, color, c.track)
+                    TagChip(g.tag.name, color, Modifier.weight(1f, fill = false))
+                    Spacer(Modifier.weight(1f))
+                    Text("${g.missions.count { it.isDone }}/${g.missions.size}", style = MaterialTheme.typography.labelLarge, color = c.muted)
                 }
-                QuickButton(m, color) { onQuick(m) }
+                g.missions.forEach { m -> MissionLine(m, color, onOpen, onQuick, onMenu) }
             }
         }
+    }
+}
+
+/** Kachel für eine einzelne Mission ohne Tag – ohne Kopfzeile. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun SingleMissionTile(m: Mission, size: TileSize, onOpen: () -> Unit, onQuick: (Mission) -> Unit, onMenu: () -> Unit) {
+    val c = Ww.colors.mission
+    Box(Modifier.fillMaxWidth().areaCard(c.container).combinedClickable(onClick = onOpen, onLongClick = onMenu)) {
+        TileBox(size, autoMin = 120.dp, fade = c.container) {
+            Column(Modifier.padding(12.dp)) { MissionLine(m, c.accent, onOpen, onQuick, onMenu, maxDetailLines = 3) }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MissionLine(
+    m: Mission, color: Color, onOpen: () -> Unit, onQuick: (Mission) -> Unit, onMenu: () -> Unit, maxDetailLines: Int = 1,
+) {
+    val c = Ww.colors.mission
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(
+            Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).combinedClickable(onClick = onOpen, onLongClick = onMenu),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(
+                m.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = c.content,
+                textDecoration = if (m.isDone) TextDecoration.LineThrough else null, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+            if (m.detail.isNotBlank()) Text(m.detail, maxLines = maxDetailLines, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = c.muted)
+            if (m.counter) Text("${m.progress}/${m.target}", style = MaterialTheme.typography.labelMedium, color = c.muted)
+            ProgressLine(m.progress.toFloat() / m.target, color, c.track)
+        }
+        QuickButton(m, color) { onQuick(m) }
     }
 }
 
@@ -392,10 +455,10 @@ fun QuickButton(m: Mission, color: Color, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AddMissionTile(onClick: () -> Unit, modifier: Modifier) {
+private fun AddMissionTile(onClick: () -> Unit) {
     val c = Ww.colors.mission
     Column(
-        modifier.heightIn(min = 120.dp).clip(RoundedCornerShape(22.dp))
+        Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(22.dp))
             .border(BorderStroke(2.dp, c.accent.copy(alpha = .6f)), RoundedCornerShape(22.dp))
             .clickable(onClick = onClick).padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

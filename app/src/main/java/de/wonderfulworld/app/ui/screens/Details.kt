@@ -164,7 +164,11 @@ fun RitualsTodayScreen(onBack: () -> Unit) {
 // ---------------------------------------------------------------- Missionen eines Tags
 
 @Composable
-fun TagMissionsScreen(tagId: Long, onBack: () -> Unit, onEditMission: (Long) -> Unit, onNewMission: (Long) -> Unit) {
+fun TagMissionsScreen(
+    tagId: Long, onBack: () -> Unit, onEditMission: (Long) -> Unit, onNewMission: (Long) -> Unit,
+    /** > 0: nur diese eine Mission (ohne Tag) zeigen. */
+    onlyMission: Long = 0L,
+) {
     val vm = appViewModel { DetailViewModel(it) }
     val today = rememberToday()
     val missions by vm.repo.missions.collectAsStateWithLifecycle(emptyList())
@@ -173,17 +177,17 @@ fun TagMissionsScreen(tagId: Long, onBack: () -> Unit, onEditMission: (Long) -> 
     val month = Dates.missionMonth(today)
     val tag = tags.firstOrNull { it.id == tagId }
     val known = tags.map { it.id }.toSet()
-    val list = missions.filter {
+    val list = if (onlyMission > 0) missions.filter { it.id == onlyMission } else missions.filter {
         it.month == month && it.resolution == null &&
             (if (tagId == 0L) it.tagId == null || it.tagId !in known else it.tagId == tagId)
     }
-    val color = tagColor(tag)
+    val color = if (onlyMission > 0) c.accent else tagColor(tag)
 
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         containerColor = c.background,
         topBar = {
-            BackTopBar("", onBack, containerColor = c.background, contentColor = c.content)
+            BackTopBar(if (onlyMission > 0) "Mission" else "", onBack, containerColor = c.background, contentColor = c.content)
         },
     ) { inner ->
         LazyColumn(
@@ -191,9 +195,9 @@ fun TagMissionsScreen(tagId: Long, onBack: () -> Unit, onEditMission: (Long) -> 
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
+            if (onlyMission == 0L) item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TagChip(tag?.name ?: "Allgemein", color, large = true)
+                    TagChip(tag?.name ?: "Ohne Tag", color, large = true)
                     Text("  ${month.monthNameDe()}", style = MaterialTheme.typography.labelLarge, color = c.muted)
                 }
             }
@@ -227,7 +231,7 @@ fun TagMissionsScreen(tagId: Long, onBack: () -> Unit, onEditMission: (Long) -> 
                     if (m.detail.isNotBlank()) Text(m.detail, style = MaterialTheme.typography.bodyLarge, color = c.content)
                 }
             }
-            item {
+            if (onlyMission == 0L) item {
                 OutlinedButton(
                     onClick = { onNewMission(tagId) },
                     border = BorderStroke(2.dp, color),

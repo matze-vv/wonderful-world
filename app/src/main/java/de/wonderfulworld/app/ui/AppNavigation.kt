@@ -93,6 +93,7 @@ fun AppNavigation(pendingDest: MutableStateFlow<String?>) {
                     onOpenEntry = { nav.navigate("journal/$it") },
                     onOpenRituals = { nav.navigate("rituals") },
                     onOpenTag = { nav.navigate("tag/$it") },
+                    onOpenMission = { nav.navigate("missiondetail/$it") },
                     onNewMission = { nav.navigate("mission?id=0&tag=0") },
                 )
             }
@@ -119,6 +120,14 @@ fun AppNavigation(pendingDest: MutableStateFlow<String?>) {
                     onBack = { nav.popBackStack() },
                     onEditMission = { nav.navigate("mission?id=$it&tag=0") },
                     onNewMission = { nav.navigate("mission?id=0&tag=$it") },
+                )
+            }
+            composable("missiondetail/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { back ->
+                TagMissionsScreen(
+                    tagId = 0L, onlyMission = back.arguments?.getLong("id") ?: 0L,
+                    onBack = { nav.popBackStack() },
+                    onEditMission = { nav.navigate("mission?id=$it&tag=0") },
+                    onNewMission = {},
                 )
             }
             composable("journal/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { back ->

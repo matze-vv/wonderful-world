@@ -32,6 +32,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Crop
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Image
@@ -129,6 +130,22 @@ class EntryViewModel(val app: WonderfulWorldApp) : ViewModel() {
 
     fun removePhoto() { photo = null }
 
+    /** Zuschnitt/Drehung anwenden – erzeugt eine neue Bilddatei. */
+    fun editPhoto(degrees: Float, crop: androidx.compose.ui.geometry.Rect) = viewModelScope.launch {
+        val current = photo ?: return@launch
+        busy = true
+        val name = withContext(Dispatchers.IO) {
+            runCatching { repo.photos.cropRotate(current, degrees, crop.left, crop.top, crop.right, crop.bottom) }.getOrNull()
+        }
+        if (name != null) {
+            addedPhotos += name
+            photo = name
+        } else {
+            error = "Das Foto konnte nicht bearbeitet werden."
+        }
+        busy = false
+    }
+
     fun save(onDone: () -> Unit) = viewModelScope.launch {
         val e = (original ?: JournalEntry(timestamp = timestamp, text = "")).copy(text = text.trim(), photo = photo)
         repo.saveEntry(e)
@@ -165,6 +182,7 @@ fun EntryScreen(id: Long, onDone: () -> Unit) {
     var confirmDelete by remember { mutableStateOf(false) }
     var sheet by remember { mutableStateOf(false) }
     var fullscreen by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
 
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
@@ -258,6 +276,10 @@ fun EntryScreen(id: Long, onDone: () -> Unit) {
                             .background(Color(0x9E14283C)).padding(horizontal = 12.dp, vertical = 6.dp),
                         color = Color.White, style = MaterialTheme.typography.labelMedium,
                     )
+                    IconButton(
+                        onClick = { editing = true },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).clip(CircleShape).background(Color(0x9E14283C)),
+                    ) { Icon(Icons.Rounded.Crop, "Zuschneiden und geraderücken", tint = Color.White) }
                     if (vm.busy) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
                 }
             }
@@ -297,10 +319,19 @@ fun EntryScreen(id: Long, onDone: () -> Unit) {
                     modifier = Modifier.padding(4.dp))
                 SheetAction(Icons.Rounded.PhotoCamera, "Foto aufnehmen", c.container, c.content) { sheet = false; takePhoto() }
                 SheetAction(Icons.Rounded.Image, "Aus Galerie wählen", c.container, c.content) { sheet = false; pickPhoto() }
+                if (vm.photo != null) SheetAction(Icons.Rounded.Crop, "Zuschneiden & geraderücken", c.container, c.content) {
+                    sheet = false; editing = true
+                }
                 if (vm.photo != null) SheetAction(Icons.Rounded.DeleteOutline, "Foto entfernen", Color.Transparent, MaterialTheme.colorScheme.error) {
                     sheet = false; vm.removePhoto()
                 }
             }
+        }
+    }
+    if (editing) vm.photo?.let { name ->
+        PhotoEditorDialog(vm.app.repo.photos, name, onCancel = { editing = false }) { deg, crop ->
+            editing = false
+            vm.editPhoto(deg, crop)
         }
     }
     if (fullscreen) vm.photo?.let { PhotoViewer(vm.app.repo.photos.file(it)) { fullscreen = false } }

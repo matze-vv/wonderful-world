@@ -3,6 +3,7 @@ package de.wonderfulworld.app.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -89,17 +90,18 @@ fun MissionRow(m: Mission, tag: Tag?, onClick: (() -> Unit)?) {
 }
 
 /** Tagebuch-Kachel: Foto als Hintergrund, Text darüber. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun JournalTile(
     e: JournalEntry, app: WonderfulWorldApp, today: LocalDate, onClick: () -> Unit,
-    modifier: Modifier = Modifier, height: Dp = 190.dp,
+    modifier: Modifier = Modifier, height: Dp = 190.dp, onLongClick: (() -> Unit)? = null,
 ) {
     val c = Ww.colors.journal
     val dt = e.dateTime()
     val hasPhoto = e.photo != null
     Box(
         modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(22.dp))
-            .background(c.container).clickable(onClick = onClick),
+            .background(c.container).combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         if (hasPhoto) {
             AsyncImage(

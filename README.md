@@ -17,8 +17,10 @@ Alle APKs sind mit demselben Schlüssel (`app/debug.keystore`) signiert. Updates
 ## Bedienung (ab Version 2)
 - **Dashboard „Woche“** mit Kacheln: Rituale heute (rötlich), eine Kachel pro Missions-Tag (gelblich, umrandet in der Tag-Farbe), eine Kachel pro Tagebucheintrag der Woche (bläulich, Foto als Hintergrund).
 - Kreis bzw. **+1** in der Kachel hakt direkt ab, der Rest der Kachel öffnet die Detailansicht.
+- **Kachel gedrückt halten** öffnet das Größenmenü: schmal/breit und Höhe Variabel (Standard, passt sich dem Inhalt an), S, M, L, XL. Kacheln sind als Mauerwerk angeordnet – Nachbarn wachsen nicht mit.
+- Missionen **ohne Tag** bekommen je eine eigene Kachel.
 - **Mehr:** gespeicherte Rituale (Details, Standard-Tage, aktiv/pausiert) und Tags (Name, Farbe) verwalten, dazu Einstellungen und Backup.
-- **Neuer Eintrag:** Foto-Kachel oben (+ zum Hinzufügen, Tippen = Vollbild, Halten = ändern), Text-Kachel darunter.
+- **Neuer Eintrag:** Foto-Kachel oben (+ zum Hinzufügen, Tippen = Vollbild, Halten = ändern), Text-Kachel darunter. Fotos lassen sich frei zuschneiden und geraderücken (±45°).
 - Schrift: [Figtree](https://github.com/erikdkennedy/figtree) (SIL Open Font License, siehe `licenses/`).
 
 ## Wichtige Logik
